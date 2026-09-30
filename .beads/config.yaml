@@ -74,3 +74,5 @@
 sync.remote: "git+https://github.com/maphew/number-up.git"
 export:
     auto: true
+agent:
+    profile: team-maintainer
