@@ -1,0 +1,341 @@
+(function () {
+  'use strict';
+
+  const { WORLDS, WORLD_ORDER, findStart } = globalThis.NumberUpWorlds;
+  const Engine = globalThis.NumberUpEngine;
+
+  const params = new URLSearchParams(location.search);
+  const pick = (key, pool, fallback) => (pool[key] ? key : fallback);
+
+  const state = {
+    worldKey: pick(params.get('world'), WORLDS, 'full'),
+    ruleKey: pick(params.get('rule'), Engine.RULES, 'eval'),
+    failKey: pick(params.get('fail'), Engine.FAILURE_RULES, 'notUp'),
+    debug: params.get('debug') === '1',
+    number: 0,
+    pos: { x: 2, y: 2 },
+    over: false,
+    engine: null,
+  };
+
+  const CELL = 100;
+  const els = {
+    number: document.getElementById('number'),
+    position: document.getElementById('position'),
+    ruleLabel: document.getElementById('rule-label'),
+    failLabel: document.getElementById('fail-label'),
+    worldLabel: document.getElementById('world-label'),
+    observation: document.getElementById('observation'),
+    history: document.getElementById('history'),
+  };
+  const svg = document.getElementById('grid');
+
+  let tileNodes = [];
+  let playerNode = null;
+  let playerNumberNode = null;
+  let fxLayer = null;
+
+  function world() {
+    return WORLDS[state.worldKey];
+  }
+
+  function tileAt(x, y) {
+    return world().rows[y][x];
+  }
+
+  function ns(tag, attrs) {
+    const node = document.createElementNS('http://www.w3.org/2000/svg', tag);
+    for (const k in attrs) node.setAttribute(k, attrs[k]);
+    return node;
+  }
+
+  function cellCenter(x, y) {
+    return { cx: x * CELL + CELL / 2, cy: y * CELL + CELL / 2 };
+  }
+
+  function buildGrid() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    tileNodes = [];
+    const rows = world().rows;
+
+    for (let i = 0; i <= rows.length; i++) {
+      svg.appendChild(ns('line', { x1: 0, y1: i * CELL, x2: rows.length * CELL, y2: i * CELL, class: 'cell-line' }));
+      svg.appendChild(ns('line', { x1: i * CELL, y1: 0, x2: i * CELL, y2: rows.length * CELL, class: 'cell-line' }));
+    }
+
+    for (let y = 0; y < rows.length; y++) {
+      tileNodes.push([]);
+      for (let x = 0; x < rows[y].length; x++) {
+        const { cx, cy } = cellCenter(x, y);
+        const glyph = rows[y][x];
+        if (glyph === '.') {
+          tileNodes[y].push(null);
+          continue;
+        }
+        const text = ns('text', { x: cx, y: cy, class: glyph in Engine.OPS ? 'tile op' : 'tile' });
+        text.textContent = glyph;
+        svg.appendChild(text);
+        tileNodes[y].push(text);
+      }
+    }
+
+    fxLayer = ns('g', { id: 'fx' });
+    svg.appendChild(fxLayer);
+
+    playerNode = ns('g', { id: 'player' });
+    playerNode.appendChild(ns('circle', { cx: 0, cy: 0, r: 30, class: 'dot' }));
+    playerNumberNode = ns('text', { x: 0, y: 1, class: 'pnum' });
+    playerNode.appendChild(playerNumberNode);
+    svg.appendChild(playerNode);
+  }
+
+  function placePlayer() {
+    const { cx, cy } = cellCenter(state.pos.x, state.pos.y);
+    playerNode.style.transform = `translate(${cx}px, ${cy}px)`;
+  }
+
+  function fmtNumber(n) {
+    return Number.isFinite(n) ? String(n) : 'INVALID';
+  }
+
+  function statusClass(ev) {
+    if (!ev.valid) return 'down';
+    if (ev.delta > 0) return 'up';
+    if (ev.delta < 0) return 'down';
+    return 'flat';
+  }
+
+  function flashStatus(cls) {
+    els.number.classList.remove('up', 'down', 'flat');
+    void els.number.offsetWidth;
+    if (cls) els.number.classList.add(cls);
+    setTimeout(() => els.number.classList.remove(cls), 450);
+  }
+
+  function deltaGlyph(ev) {
+    if (!ev.valid) return '✕ invalid';
+    if (ev.delta > 0) return `↑ +${ev.delta}`;
+    if (ev.delta < 0) return `↓ ${ev.delta}`;
+    return '— ±0';
+  }
+
+  function animateSuperpose(ev, from, to) {
+    const dest = tileNodes[from.y][from.x];
+    const { cx: fx, cy: fy } = cellCenter(from.x, from.y);
+    const { cx: tx, cy: ty } = cellCenter(to.x, to.y);
+
+    if (dest) {
+      const fly = ns('text', { x: 0, y: 0, class: 'fly', transform: `translate(${fx}px, ${fy}px)` });
+      fly.textContent = ev.destinationTile;
+      fxLayer.appendChild(fly);
+      requestAnimationFrame(() => {
+        fly.style.transform = `translate(${fx}px, ${fy}px)`;
+        requestAnimationFrame(() => {
+          fly.style.transform = `translate(${tx}px, ${ty}px)`;
+          fly.style.opacity = '0';
+        });
+      });
+      setTimeout(() => fly.remove(), 500);
+    }
+
+    playerNumberNode.textContent = fmtNumber(state.number);
+    playerNumberNode.classList.remove('pop');
+    void playerNumberNode.getBoundingClientRect();
+    playerNumberNode.classList.add('pop');
+
+    const cls = statusClass(ev);
+    const delta = ns('text', { x: 0, y: 0, class: `delta ${cls}` });
+    delta.style.transform = `translate(${tx}px, ${ty - 44}px)`;
+    delta.textContent = deltaGlyph(ev);
+    fxLayer.appendChild(delta);
+    setTimeout(() => delta.remove(), 700);
+
+    flashStatus(cls);
+  }
+
+  function line(cls, text) {
+    const div = document.createElement('div');
+    if (cls) div.className = cls;
+    div.textContent = text;
+    return div;
+  }
+
+  function showObservation(ev, blocked, extra) {
+    const obs = els.observation;
+    obs.textContent = '';
+    if (blocked) {
+      obs.appendChild(line('', `You moved ${ev}.`));
+      obs.appendChild(line('', ''));
+      obs.appendChild(line('flat', 'Blocked — edge of world.'));
+      return;
+    }
+    obs.appendChild(line('', `You moved ${ev.direction}.`));
+    obs.appendChild(line('', ''));
+    obs.appendChild(line('', 'SUPERPOSITION'));
+    obs.appendChild(line('', ''));
+    obs.appendChild(line('', `${fmtNumber(ev.oldNumber)}  ${ev.destinationTile}`));
+    obs.appendChild(line('', ''));
+    obs.appendChild(line('', `Result: ${ev.valid ? fmtNumber(ev.result) : 'INVALID'}`));
+    obs.appendChild(line(
+      ev.valid ? statusClass(ev) : 'down',
+      `Number went UP: ${ev.valid ? (ev.wentUp ? 'YES' : 'NO') : '—'}${ev.valid && ev.delta !== null ? `  (Δ ${ev.delta > 0 ? '+' : ''}${ev.delta})` : ''}`
+    ));
+    if (extra) {
+      obs.appendChild(line('', ''));
+      obs.appendChild(extra);
+    }
+  }
+
+  function showRunOver(ev) {
+    const frag = document.createDocumentFragment();
+    frag.appendChild(line('over', `RUN OVER — ${ev.failReason}.`));
+    frag.appendChild(line('', `Survived ${ev.turn} move${ev.turn === 1 ? '' : 's'}, final Number ${fmtNumber(state.number)}.`));
+    frag.appendChild(line('', 'Press R to restart.'));
+    return frag;
+  }
+
+  function renderStatus() {
+    els.number.textContent = fmtNumber(state.number);
+    els.position.textContent = `${state.pos.x},${state.pos.y}`;
+    els.ruleLabel.textContent = `${state.ruleKey} (${state.engine.rule.name})`;
+    els.failLabel.textContent = `${state.failKey} (${state.engine.failure.name})`;
+    els.worldLabel.textContent = `${state.worldKey} — ${world().name}`;
+  }
+
+  function renderHistory() {
+    const rows = state.engine.history.slice(-8).map((ev) => {
+      const outcome = ev.valid
+        ? `→ ${ev.result} (Δ ${ev.delta > 0 ? '+' : ''}${ev.delta}) ${ev.wentUp ? 'UP' : 'not up'}`
+        : '→ INVALID';
+      return `${String(ev.turn).padStart(3)} ${ev.direction.padEnd(5)} ${ev.oldNumber} ${ev.destinationTile} ${outcome}${ev.failed ? `  ☠ ${ev.failReason}` : ''}`;
+    });
+    els.history.textContent = rows.join('\n');
+  }
+
+  function render() {
+    placePlayer();
+    playerNumberNode.textContent = fmtNumber(state.number);
+    playerNode.classList.toggle('dead', state.over);
+    renderStatus();
+    if (state.debug) renderHistory();
+  }
+
+  const DIRECTIONS = {
+    up: { dx: 0, dy: -1 },
+    down: { dx: 0, dy: 1 },
+    left: { dx: -1, dy: 0 },
+    right: { dx: 1, dy: 0 },
+  };
+
+  function tryMove(name) {
+    if (state.over) {
+      const obs = els.observation;
+      obs.textContent = '';
+      obs.appendChild(line('', `You moved ${name.toUpperCase()}.`));
+      obs.appendChild(line('', ''));
+      obs.appendChild(line('flat', 'Run is over — press R to restart.'));
+      return;
+    }
+    const { dx, dy } = DIRECTIONS[name];
+    const nx = state.pos.x + dx;
+    const ny = state.pos.y + dy;
+    const size = world().rows.length;
+    if (nx < 0 || ny < 0 || nx >= size || ny >= size) {
+      playerNode.classList.remove('pop');
+      void playerNode.getBoundingClientRect();
+      playerNode.classList.add('pop');
+      showObservation(name, true);
+      return;
+    }
+
+    const from = { ...state.pos };
+    const ev = state.engine.attempt(state.number, name.toUpperCase(), tileAt(nx, ny));
+    state.number = ev.valid ? ev.result : NaN;
+    state.pos = { x: nx, y: ny };
+
+    render();
+    animateSuperpose(ev, from, state.pos);
+    showObservation(ev, false, ev.failed ? showRunOver(ev) : null);
+    if (ev.failed) state.over = true;
+    render();
+  }
+
+  function restart(message) {
+    applyEngine();
+    state.number = 0;
+    state.pos = findStart(world());
+    state.over = false;
+    buildGrid();
+    render();
+    els.observation.textContent = message || `World ${state.worldKey} — ${world().name}. Number = 0.`;
+    if (state.debug) renderHistory();
+  }
+
+  function cycle(list, order, key) {
+    return order[(order.indexOf(key) + 1) % order.length];
+  }
+
+  function nextWorld() {
+    state.worldKey = cycle(WORLDS, WORLD_ORDER, state.worldKey);
+    restart();
+  }
+
+  function nextRule() {
+    state.ruleKey = cycle(Engine.RULES, ['replace', 'add', 'eval'], state.ruleKey);
+    restart(`Collision rule → ${state.ruleKey} (${state.engine.rule.name}). Number = 0.`);
+  }
+
+  function nextFailure() {
+    state.failKey = cycle(Engine.FAILURE_RULES, ['notUp', 'none'], state.failKey);
+    restart(`Failure rule → ${state.failKey} (${state.engine.failure.name}). Number = 0.`);
+  }
+
+  function applyEngine() {
+    state.engine = Engine.createEngine(state.ruleKey, state.failKey);
+  }
+
+  const KEYS = {
+    ArrowUp: 'up',
+    ArrowDown: 'down',
+    ArrowLeft: 'left',
+    ArrowRight: 'right',
+    w: 'up',
+    s: 'down',
+    a: 'left',
+    d: 'right',
+    Numpad8: 'up',
+    Numpad2: 'down',
+    Numpad4: 'left',
+    Numpad6: 'right',
+  };
+
+  document.addEventListener('keydown', (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const move = KEYS[e.key] || KEYS[e.code];
+    if (move) {
+      e.preventDefault();
+      tryMove(move);
+      return;
+    }
+    const k = e.key.toLowerCase();
+    if (k === 'r' || e.key === 'Enter') {
+      e.preventDefault();
+      restart();
+    } else if (k === '/') {
+      e.preventDefault();
+      state.debug = !state.debug;
+      document.body.classList.toggle('debug', state.debug);
+      if (state.debug) renderHistory();
+    } else if (k === 'n') {
+      nextWorld();
+    } else if (k === 'c') {
+      nextRule();
+    } else if (k === 'f') {
+      nextFailure();
+    }
+  });
+
+  applyEngine();
+  if (state.debug) document.body.classList.add('debug');
+  restart(`World ${state.worldKey} — ${world().name}. Collision rule ${state.ruleKey}. Number = 0.`);
+})();

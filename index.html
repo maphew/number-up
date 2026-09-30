@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NUMBER UP</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="status">
+  <h1>NUMBER UP</h1>
+  <div class="stats">
+    <div class="stat">
+      <span class="label">NUMBER</span>
+      <span id="number" class="value">0</span>
+    </div>
+    <div class="stat debug-only">
+      <span class="label">POSITION</span>
+      <span id="position" class="value">2,2</span>
+    </div>
+    <div class="stat debug-only">
+      <span class="label">RULE</span>
+      <span id="rule-label" class="value">eval</span>
+    </div>
+    <div class="stat debug-only">
+      <span class="label">FAIL</span>
+      <span id="fail-label" class="value">notUp</span>
+    </div>
+    <div class="stat debug-only">
+      <span class="label">WORLD</span>
+      <span id="world-label" class="value">full</span>
+    </div>
+  </div>
+</header>
+
+<main id="world">
+  <svg id="grid" viewBox="0 0 500 500" role="img" aria-label="Number Up grid"></svg>
+</main>
+
+<section id="messages">
+  <div id="observation">NUMBER UP. Move with arrow keys, WASD, or numpad.</div>
+  <pre id="history" class="debug-only"></pre>
+  <div id="help" class="debug-only">R restart &middot; / debug &middot; N world &middot; C rule &middot; F fail-rule</div>
+</section>
+
+<script src="world.js"></script>
+<script src="engine.js"></script>
+<script src="main.js"></script>
+</body>
+</html>
