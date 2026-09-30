@@ -362,6 +362,7 @@
   function toggleDebug() {
     state.debug = !state.debug;
     document.body.classList.toggle('debug', state.debug);
+    document.querySelector('#help [data-action="debug"]')?.classList.toggle('on', state.debug);
     if (state.debug) renderHistory();
   }
 
@@ -391,8 +392,10 @@
     }
   });
 
-  document.getElementById('touch-controls')?.addEventListener('click', (e) => {
-    const action = e.target.closest('button')?.dataset.action;
+  document.getElementById('help')?.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
     if (action === 'restart') restart();
     else if (action === 'debug') toggleDebug();
     else if (action === 'world') nextWorld();

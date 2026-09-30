@@ -185,7 +185,7 @@ body {
 
 #messages {
   width: min(560px, 94vw);
-  padding: 14px 4px 24px;
+  padding: 14px 4px calc(24px + env(safe-area-inset-bottom, 0px));
 }
 
 #observation {
@@ -214,9 +214,41 @@ body {
 }
 
 #help {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
   color: var(--dim);
   font-size: 11px;
   margin-top: 10px;
+}
+
+#help .key-note {
+  letter-spacing: 0.1em;
+}
+
+#help button {
+  font: inherit;
+  padding: 6px 10px;
+  color: var(--dim);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  letter-spacing: 0.05em;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+#help button kbd {
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+#help button:active,
+#help button.on {
+  color: var(--ink);
+  border-color: var(--dim);
 }
 
 #feedback {
@@ -239,40 +271,4 @@ body.debug .debug-only {
 
 body.debug .stats .debug-only {
   display: flex;
-}
-
-#touch-controls {
-  display: none;
-  width: min(560px, 94vw);
-  gap: 6px;
-  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
-}
-
-#touch-controls button {
-  flex: 1;
-  padding: 14px 0;
-  font: inherit;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--dim);
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;
-}
-
-#touch-controls button:active {
-  color: var(--ink);
-  border-color: var(--dim);
-}
-
-@media (pointer: coarse) {
-  #touch-controls {
-    display: flex;
-  }
-
-  #help {
-    display: block;
-  }
 }

@@ -13,10 +13,9 @@ Play in the browser at https://maphew.github.io/number-up/ — no build, no
 install. For local work, open `index.html` directly or serve the folder,
 e.g. `python3 -m http.server 8123`.
 
-On a phone (touch): serve the folder on your network, e.g.
-`python3 -m http.server 8123`, then open `http://<your-machine-ip>:8123` on the
-phone. The grid accepts swipes to move and taps to restart; an on-screen row of
-`R / N C F /` buttons mirrors the keyboard shortcuts (shown on touch devices).
+On a phone (touch): the grid accepts swipes to move and taps to restart. The
+shortcut chips below the map mirror the keyboard shortcuts and are clickable
+with mouse or touch.
 
 ## Controls
 
@@ -29,8 +28,10 @@ phone. The grid accepts swipes to move and taps to restart; an on-screen row of
   so the exact map can be shared)
 - `C`: cycle collision rule
 - `F`: cycle failure rule
-- `@` (touch row) or the feedback line: send feedback with your current run state
+- `@` chip or the feedback line: send feedback with your current run state
   attached → maphew+number-up@gmail.com
+- Shortcut chips below the map (`R / N G C F / @`) are clickable and perform
+  each shortcut with mouse or touch
 - URL params: `?world=full|a|b|c|d|gen&seed=N&rule=replace|add|eval&fail=notUp|none&debug=1`
 
 ## Where things live
