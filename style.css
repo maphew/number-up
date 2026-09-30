@@ -23,6 +23,7 @@ body {
   flex-direction: column;
   align-items: center;
   min-height: 100vh;
+  overscroll-behavior: none;
 }
 
 #status {
@@ -92,6 +93,9 @@ body {
   display: block;
   width: 100%;
   height: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .cell-line {
@@ -225,4 +229,40 @@ body.debug .debug-only {
 
 body.debug .stats .debug-only {
   display: flex;
+}
+
+#touch-controls {
+  display: none;
+  width: min(560px, 94vw);
+  gap: 8px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+}
+
+#touch-controls button {
+  flex: 1;
+  padding: 14px 0;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--dim);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+#touch-controls button:active {
+  color: var(--ink);
+  border-color: var(--dim);
+}
+
+@media (pointer: coarse) {
+  #touch-controls {
+    display: flex;
+  }
+
+  #help {
+    display: block;
+  }
 }

@@ -11,9 +11,15 @@ are open questions — the prototype exists to let you feel candidate answers.
 
 Open `index.html` in a browser. No build, no server, no dependencies.
 
+On a phone (touch): serve the folder on your network, e.g.
+`python3 -m http.server 8123`, then open `http://<your-machine-ip>:8123` on the
+phone. The grid accepts swipes to move and taps to restart; an on-screen row of
+`R / N C F /` buttons mirrors the keyboard shortcuts (shown on touch devices).
+
 ## Controls
 
 - Arrow keys / WASD / numpad (2 4 6 8): move — the only verb
+- Touch: swipe the grid to move; tap the grid to restart a finished run
 - `R` (or Enter): restart the run
 - `/`: toggle verbose debug observation (also `?debug=1`)
 - `N`: next test world

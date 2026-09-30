@@ -6,6 +6,7 @@
 
   const params = new URLSearchParams(location.search);
   const pick = (key, pool, fallback) => (pool[key] ? key : fallback);
+  const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
 
   const state = {
     worldKey: pick(params.get('world'), WORLDS, 'full'),
@@ -190,7 +191,7 @@
     const frag = document.createDocumentFragment();
     frag.appendChild(line('over', `RUN OVER — ${ev.failReason}.`));
     frag.appendChild(line('', `Survived ${ev.turn} move${ev.turn === 1 ? '' : 's'}, final Number ${fmtNumber(state.number)}.`));
-    frag.appendChild(line('', 'Press R to restart.'));
+    frag.appendChild(line('', IS_TOUCH ? 'Tap the grid (or R) to restart.' : 'Press R to restart.'));
     return frag;
   }
 
@@ -233,7 +234,7 @@
       obs.textContent = '';
       obs.appendChild(line('', `You moved ${name.toUpperCase()}.`));
       obs.appendChild(line('', ''));
-      obs.appendChild(line('flat', 'Run is over — press R to restart.'));
+      obs.appendChild(line('flat', IS_TOUCH ? 'Run is over — tap the grid to restart.' : 'Run is over — press R to restart.'));
       return;
     }
     const { dx, dy } = DIRECTIONS[name];
@@ -267,7 +268,7 @@
     state.over = false;
     buildGrid();
     render();
-    els.observation.textContent = message || `World ${state.worldKey} — ${world().name}. Number = 0.`;
+    els.observation.textContent = message || `World ${state.worldKey} — ${world().name}. Number = 0.${IS_TOUCH ? ' Swipe the grid to move.' : ''}`;
     if (state.debug) renderHistory();
   }
 
@@ -309,6 +310,12 @@
     Numpad6: 'right',
   };
 
+  function toggleDebug() {
+    state.debug = !state.debug;
+    document.body.classList.toggle('debug', state.debug);
+    if (state.debug) renderHistory();
+  }
+
   document.addEventListener('keydown', (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const move = KEYS[e.key] || KEYS[e.code];
@@ -323,9 +330,7 @@
       restart();
     } else if (k === '/') {
       e.preventDefault();
-      state.debug = !state.debug;
-      document.body.classList.toggle('debug', state.debug);
-      if (state.debug) renderHistory();
+      toggleDebug();
     } else if (k === 'n') {
       nextWorld();
     } else if (k === 'c') {
@@ -334,6 +339,47 @@
       nextFailure();
     }
   });
+
+  document.getElementById('touch-controls')?.addEventListener('click', (e) => {
+    const action = e.target.closest('button')?.dataset.action;
+    if (action === 'restart') restart();
+    else if (action === 'debug') toggleDebug();
+    else if (action === 'world') nextWorld();
+    else if (action === 'rule') nextRule();
+    else if (action === 'fail') nextFailure();
+  });
+
+  let touchStart = null;
+  const SWIPE_MIN = 24;
+
+  svg.addEventListener('touchstart', (e) => {
+    if (e.changedTouches.length !== 1) return;
+    e.preventDefault();
+    touchStart = { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+  }, { passive: false });
+
+  svg.addEventListener('touchmove', (e) => {
+    e.preventDefault();
+  }, { passive: false });
+
+  svg.addEventListener('touchend', (e) => {
+    if (!touchStart || e.changedTouches.length !== 1) return;
+    e.preventDefault();
+    const dx = e.changedTouches[0].clientX - touchStart.x;
+    const dy = e.changedTouches[0].clientY - touchStart.y;
+    touchStart = null;
+    const ax = Math.abs(dx);
+    const ay = Math.abs(dy);
+    if (Math.max(ax, ay) < SWIPE_MIN) {
+      if (state.over) restart();
+      return;
+    }
+    tryMove(ax > ay ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+  }, { passive: false });
+
+  svg.addEventListener('touchcancel', () => {
+    touchStart = null;
+  }, { passive: false });
 
   applyEngine();
   if (state.debug) document.body.classList.add('debug');

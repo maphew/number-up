@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>NUMBER UP</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -42,6 +42,14 @@
   <pre id="history" class="debug-only"></pre>
   <div id="help" class="debug-only">R restart &middot; / debug &middot; N world &middot; C rule &middot; F fail-rule</div>
 </section>
+
+<nav id="touch-controls" aria-label="Touch controls">
+  <button type="button" data-action="restart" aria-label="Restart run">R</button>
+  <button type="button" data-action="debug" aria-label="Toggle debug">/</button>
+  <button type="button" data-action="world" aria-label="Next world">N</button>
+  <button type="button" data-action="rule" aria-label="Cycle rule">C</button>
+  <button type="button" data-action="fail" aria-label="Cycle fail rule">F</button>
+</nav>
 
 <script src="world.js"></script>
 <script src="engine.js"></script>
