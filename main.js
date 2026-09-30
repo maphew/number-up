@@ -28,6 +28,7 @@
     worldLabel: document.getElementById('world-label'),
     observation: document.getElementById('observation'),
     history: document.getElementById('history'),
+    feedbackLink: document.getElementById('feedback-mail'),
   };
   const svg = document.getElementById('grid');
 
@@ -203,6 +204,27 @@
     els.worldLabel.textContent = `${state.worldKey} — ${world().name}`;
   }
 
+  function feedbackHref() {
+    const lines = [
+      `World: ${state.worldKey} — ${world().name}`,
+      `Collision rule: ${state.ruleKey} (${state.engine.rule.name})`,
+      `Failure rule: ${state.failKey} (${state.engine.failure.name})`,
+      `Number: ${fmtNumber(state.number)} after ${state.engine.turn} move${state.engine.turn === 1 ? '' : 's'}`,
+      '',
+      'Last moves:',
+      ...state.engine.history.slice(-10).map((ev) => (
+        `${ev.turn} ${ev.direction} ${ev.oldNumber} ${ev.destinationTile} → ${ev.valid ? ev.result : 'INVALID'}`
+      )),
+      '',
+      'What happened / what should have happened:',
+    ];
+    return `mailto:maphew+number-up@gmail.com?subject=${encodeURIComponent('NUMBER UP feedback')}&body=${encodeURIComponent(lines.join('\n'))}`;
+  }
+
+  function openFeedback() {
+    location.href = feedbackHref();
+  }
+
   function renderHistory() {
     const rows = state.engine.history.slice(-8).map((ev) => {
       const outcome = ev.valid
@@ -218,6 +240,7 @@
     playerNumberNode.textContent = fmtNumber(state.number);
     playerNode.classList.toggle('dead', state.over);
     renderStatus();
+    if (els.feedbackLink) els.feedbackLink.href = feedbackHref();
     if (state.debug) renderHistory();
   }
 
@@ -347,6 +370,7 @@
     else if (action === 'world') nextWorld();
     else if (action === 'rule') nextRule();
     else if (action === 'fail') nextFailure();
+    else if (action === 'feedback') openFeedback();
   });
 
   let touchStart = null;

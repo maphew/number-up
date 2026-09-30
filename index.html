@@ -40,7 +40,8 @@
 <section id="messages">
   <div id="observation">NUMBER UP. Move with arrow keys, WASD, or numpad.</div>
   <pre id="history" class="debug-only"></pre>
-  <div id="help" class="debug-only">R restart &middot; / debug &middot; N world &middot; C rule &middot; F fail-rule</div>
+  <div id="help" class="debug-only">R restart &middot; / debug &middot; N world &middot; C rule &middot; F fail-rule &middot; @ feedback</div>
+  <div id="feedback">Playing this? Tell me what it felt like — <a id="feedback-mail" href="mailto:maphew+number-up@gmail.com?subject=NUMBER%20UP%20feedback">email maphew+number-up@gmail.com</a> (your run state gets attached).</div>
 </section>
 
 <nav id="touch-controls" aria-label="Touch controls">
@@ -49,6 +50,7 @@
   <button type="button" data-action="world" aria-label="Next world">N</button>
   <button type="button" data-action="rule" aria-label="Cycle rule">C</button>
   <button type="button" data-action="fail" aria-label="Cycle fail rule">F</button>
+  <button type="button" data-action="feedback" aria-label="Email feedback">@</button>
 </nav>
 
 <script src="world.js"></script>

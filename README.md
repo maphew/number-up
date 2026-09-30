@@ -9,7 +9,9 @@ are open questions — the prototype exists to let you feel candidate answers.
 
 ## Run
 
-Open `index.html` in a browser. No build, no server, no dependencies.
+Play in the browser at https://maphew.github.io/number-up/ — no build, no
+install. For local work, open `index.html` directly or serve the folder,
+e.g. `python3 -m http.server 8123`.
 
 On a phone (touch): serve the folder on your network, e.g.
 `python3 -m http.server 8123`, then open `http://<your-machine-ip>:8123` on the
@@ -25,6 +27,8 @@ phone. The grid accepts swipes to move and taps to restart; an on-screen row of
 - `N`: next test world
 - `C`: cycle collision rule
 - `F`: cycle failure rule
+- `@` (touch row) or the feedback line: send feedback with your current run state
+  attached → maphew+number-up@gmail.com
 - URL params: `?world=full|a|b|c|d&rule=replace|add|eval&fail=notUp|none&debug=1`
 
 ## Where things live

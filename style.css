@@ -219,6 +219,16 @@ body {
   margin-top: 10px;
 }
 
+#feedback {
+  color: var(--dim);
+  font-size: 11px;
+  margin-top: 4px;
+}
+
+#feedback a {
+  color: inherit;
+}
+
 .debug-only {
   display: none;
 }
