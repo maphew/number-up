@@ -244,7 +244,7 @@ body.debug .stats .debug-only {
 #touch-controls {
   display: none;
   width: min(560px, 94vw);
-  gap: 8px;
+  gap: 6px;
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
 }
 

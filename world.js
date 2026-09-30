@@ -56,6 +56,35 @@
 
   const WORLD_ORDER = ['full', 'a', 'b', 'c', 'd'];
 
+  function mulberry32(seed) {
+    let a = seed | 0;
+    return function () {
+      a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) | 0;
+      return ((t ^ (t >>> 7)) ^ (t >>> 14)) >>> 0;
+    };
+  }
+
+  const OPS = ['+', '−', '×', '÷'];
+
+  function generateWorld(seed) {
+    const rand = mulberry32(seed);
+    const rows = [];
+    for (let y = 0; y < 5; y++) {
+      const row = [];
+      for (let x = 0; x < 5; x++) {
+        if (x === 2 && y === 2) {
+          row.push('.');
+          continue;
+        }
+        row.push(rand() % 10 < 6 ? String(rand() % 10) : OPS[rand() % 4]);
+      }
+      rows.push(row);
+    }
+    return { name: `Generated #${seed}`, rows, seed };
+  }
+
   function findStart(world) {
     for (let y = 0; y < world.rows.length; y++) {
       const x = world.rows[y].indexOf('.');
@@ -65,5 +94,5 @@
     return { x: m, y: m };
   }
 
-  globalThis.NumberUpWorlds = { WORLDS, WORLD_ORDER, findStart };
+  globalThis.NumberUpWorlds = { WORLDS, WORLD_ORDER, findStart, generateWorld };
 })();

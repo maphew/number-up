@@ -1,15 +1,17 @@
 (function () {
   'use strict';
 
-  const { WORLDS, WORLD_ORDER, findStart } = globalThis.NumberUpWorlds;
+  const { WORLDS, WORLD_ORDER, findStart, generateWorld } = globalThis.NumberUpWorlds;
   const Engine = globalThis.NumberUpEngine;
 
   const params = new URLSearchParams(location.search);
   const pick = (key, pool, fallback) => (pool[key] ? key : fallback);
   const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
 
+  const rawWorld = params.get('world');
   const state = {
-    worldKey: pick(params.get('world'), WORLDS, 'full'),
+    worldKey: pick(rawWorld, WORLDS, rawWorld === 'gen' ? 'gen' : 'full'),
+    genSeed: null,
     ruleKey: pick(params.get('rule'), Engine.RULES, 'eval'),
     failKey: pick(params.get('fail'), Engine.FAILURE_RULES, 'notUp'),
     debug: params.get('debug') === '1',
@@ -18,6 +20,11 @@
     over: false,
     engine: null,
   };
+
+  if (state.worldKey === 'gen') {
+    const s = parseInt(params.get('seed'), 10);
+    state.genSeed = Number.isInteger(s) && s > 0 ? s : Math.floor(Math.random() * 99999) + 1;
+  }
 
   const CELL = 100;
   const els = {
@@ -38,7 +45,7 @@
   let fxLayer = null;
 
   function world() {
-    return WORLDS[state.worldKey];
+    return state.worldKey === 'gen' ? generateWorld(state.genSeed) : WORLDS[state.worldKey];
   }
 
   function tileAt(x, y) {
@@ -290,9 +297,22 @@
     state.pos = findStart(world());
     state.over = false;
     buildGrid();
+    syncUrl();
     render();
     els.observation.textContent = message || `World ${state.worldKey} — ${world().name}. Number = 0.${IS_TOUCH ? ' Swipe the grid to move.' : ''}`;
     if (state.debug) renderHistory();
+  }
+
+  function syncUrl() {
+    try {
+      const p = new URLSearchParams(location.search);
+      p.set('world', state.worldKey);
+      if (state.worldKey === 'gen') p.set('seed', String(state.genSeed));
+      else p.delete('seed');
+      history.replaceState(null, '', `${location.pathname}?${p}`);
+    } catch (err) {
+      /* non-serve contexts (sandboxed iframes) may block URL writes */
+    }
   }
 
   function cycle(list, order, key) {
@@ -302,6 +322,12 @@
   function nextWorld() {
     state.worldKey = cycle(WORLDS, WORLD_ORDER, state.worldKey);
     restart();
+  }
+
+  function nextGenerated() {
+    state.worldKey = 'gen';
+    state.genSeed = Math.floor(Math.random() * 99999) + 1;
+    restart(`World gen — ${world().name}. Number = 0.`);
   }
 
   function nextRule() {
@@ -356,6 +382,8 @@
       toggleDebug();
     } else if (k === 'n') {
       nextWorld();
+    } else if (k === 'g') {
+      nextGenerated();
     } else if (k === 'c') {
       nextRule();
     } else if (k === 'f') {
@@ -368,6 +396,7 @@
     if (action === 'restart') restart();
     else if (action === 'debug') toggleDebug();
     else if (action === 'world') nextWorld();
+    else if (action === 'worldgen') nextGenerated();
     else if (action === 'rule') nextRule();
     else if (action === 'fail') nextFailure();
     else if (action === 'feedback') openFeedback();

@@ -25,11 +25,13 @@ phone. The grid accepts swipes to move and taps to restart; an on-screen row of
 - `R` (or Enter): restart the run
 - `/`: toggle verbose debug observation (also `?debug=1`)
 - `N`: next test world
+- `G`: generate a fresh seeded world (`?world=gen&seed=N` is written to the URL,
+  so the exact map can be shared)
 - `C`: cycle collision rule
 - `F`: cycle failure rule
 - `@` (touch row) or the feedback line: send feedback with your current run state
   attached → maphew+number-up@gmail.com
-- URL params: `?world=full|a|b|c|d&rule=replace|add|eval&fail=notUp|none&debug=1`
+- URL params: `?world=full|a|b|c|d|gen&seed=N&rule=replace|add|eval&fail=notUp|none&debug=1`
 
 ## Where things live
 
@@ -42,7 +44,8 @@ phone. The grid accepts swipes to move and taps to restart; an on-screen row of
   `failed(event) → reason or null`. Shipped candidates: `notUp` (provisional:
   the run ends when Number fails to go UP or becomes invalid) and `none`.
 - **Test worlds**: `world.js` → `WORLDS`. Hand-authored 5×5 rows of tiles
-  (`+ − × ÷` or numbers); `.` marks the starting cell.
+  (`+ − × ÷` or numbers); `.` marks the starting cell. `generateWorld(seed)`
+  builds a deterministic random 5×5 grid the same shape.
 - **Wiring, rendering, animation, input**: `main.js`; looks: `style.css`.
 
 Every move appends an event
