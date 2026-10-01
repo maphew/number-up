@@ -5,54 +5,63 @@
   // a collision rule × a failure rule, a suggested starting world, and the
   // hypothesis it exists to test. The front-page gallery renders from this
   // registry; long-form tracking (feedback, musings) lives in variants/<id>.md.
+  // Copy convention ("shorthand plus a plain line"): the tagline stays
+  // aphoristic, `how` states the mechanics plainly, and `hypothesis` is the
+  // bet in plain second person.
   const VARIANTS = {
     verbs: {
       name: 'Verbs',
       tagline: 'operators are verbs, numbers are fuel',
+      how: 'Touch a number to hold it. Then walk a row of plus signs to add it at every step.',
       rule: 'eval',
       fail: 'notUp',
       world: 'b',
-      hypothesis: 'Operators will read as verbs you invoke, not obstacles you hit. Watch for players composing chains.',
+      hypothesis: 'You will read the signs as moves to make, not obstacles to hit, holding a number and then running a row of signs on purpose. If you avoid the signs instead, the verb reading is ours, not yours.',
     },
     accretion: {
       name: 'Accretion',
       tagline: 'everything you touch sticks; only growth keeps you alive',
+      how: 'Whatever number you touch adds to you. A zero or a sign does nothing, and doing nothing ends the run.',
       rule: 'add',
       fail: 'notUp',
       world: 'a',
-      hypothesis: 'Plain addition is already the whole game. Pure make-number-go-up, where route choice is the only skill.',
+      hypothesis: 'You can keep this going by picking a path where every tile grows you. If it turns into bookkeeping once your number passes 40, plain addition is not enough on its own.',
     },
     becoming: {
       name: 'Becoming',
       tagline: 'you become what you touch; touch smaller and the run ends',
+      how: 'Touch a number and become it. Touch one your size or smaller, or a sign, and the run ends.',
       rule: 'replace',
       fail: 'notUp',
       world: 'c',
-      hypothesis: 'The most literal superposition, identity swap, plays as a tightrope where every move is a commitment.',
+      hypothesis: 'You will feel every move as a commitment, because your number is rented, never owned. If you reduce it to chasing the biggest neighbour, the tightrope is just a greed walk.',
     },
     rehearsal: {
       name: 'Rehearsal',
       tagline: 'the full verb grammar, with the stakes removed',
+      how: 'Touch a number to hold it, then let the signs act on it. Nothing can end the run, so try anything.',
       rule: 'eval',
       fail: 'none',
       world: 'b',
-      hypothesis: 'Without failure, does curiosity need a different anchor, or does the grammar itself pull play forward?',
+      hypothesis: 'With nothing to lose, you decide what the game is. If you keep hunting bigger numbers anyway, curiosity was never about the stakes. If you drift and stop, failure was doing the work all along.',
     },
     hoarder: {
       name: 'Hoarder',
       tagline: 'everything sticks, nothing can hurt you',
+      how: 'Every number you touch adds to you, and nothing can hurt you. Grow as big as the grid allows.',
       rule: 'add',
       fail: 'none',
       world: 'full',
-      hypothesis: 'Growth with no threat. Does accumulation compel on its own, and if so, when does the pull decay?',
+      hypothesis: 'You keep choosing paths even with no threat, or you drift once dying is impossible. Either way you tell us whether growing for its own sake is enough to keep you moving.',
     },
     masquerade: {
       name: 'Masquerade',
       tagline: 'try on any identity, answer to none',
+      how: 'Touch a number and become it. No stakes here, so tour the grid, chase a number, or make up your own game.',
       rule: 'replace',
       fail: 'none',
       world: 'full',
-      hypothesis: 'With survival out of the picture, players invent their own goals. Evidence the premise generates play by itself.',
+      hypothesis: 'Once survival is off the table, you make up your own goals, and that is the evidence that the premise generates play by itself. If you just wander, becoming needs stakes to matter.',
     },
   };
 

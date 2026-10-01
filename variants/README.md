@@ -13,6 +13,11 @@ front page (<https://maphew.github.io/number-up/>) renders the catalogue straigh
 from it, and the game reads `?variant=<id>`. Long-form tracking for each variant
 lives in its file here: rules, hypothesis, play feedback, and musings on branching.
 
+Card copy follows the **shorthand plus a plain line** convention: the tagline
+stays aphoristic, a `how` field states the mechanics in one plain sentence, and
+the `hypothesis` is the bet written in plain second person. The lab notebooks
+keep the fuller design register.
+
 ## The catalogue
 
 ### with stakes: one non-up move ends the run
@@ -36,9 +41,10 @@ VARIANT readout; it can still be reached with `?rule=` / `?fail=`.
 
 ## Adding a variant
 
-1. Add an entry to `VARIANTS` in `variants.js` (id, name, tagline, rule, fail,
-   world, hypothesis). The name should come from the feature or rule that makes
-   it different from every other variant.
+1. Add an entry to `VARIANTS` in `variants.js` (id, name, tagline, how, rule,
+   fail, world, hypothesis). The name should come from the feature or rule that
+   makes it different from every other variant. Write the tagline as shorthand,
+   the `how` line in plain second person, and the hypothesis as the bet.
 2. Copy the skeleton below into `variants/<id>.md` and fill it in.
 3. That's it. The gallery picks it up on its next load, and
    `?variant=<id>` starts working immediately.

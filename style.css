@@ -348,6 +348,12 @@ body.debug .stats .debug-only {
   margin: 0 0 8px;
 }
 
+.card .how {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+
 .card .meta {
   color: var(--dim);
   font-size: 11px;
@@ -355,6 +361,7 @@ body.debug .stats .debug-only {
 }
 
 .card .hypothesis {
+  color: var(--dim);
   font-size: 13px;
   line-height: 1.5;
   margin: 0 0 8px;

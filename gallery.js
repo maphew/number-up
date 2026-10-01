@@ -27,10 +27,12 @@
     a.innerHTML = `
       <h2>${v.name}</h2>
       <p class="tagline"></p>
+      <p class="how"></p>
       <p class="meta"></p>
       <p class="hypothesis"></p>
       <p class="play">play →</p>`;
     a.querySelector('.tagline').textContent = v.tagline;
+    a.querySelector('.how').textContent = v.how;
     a.querySelector('.meta').textContent =
       `collision: ${v.rule} · failure: ${v.fail} · opens in world ${v.world || 'full'}`;
     a.querySelector('.hypothesis').textContent = v.hypothesis;
