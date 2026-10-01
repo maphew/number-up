@@ -76,3 +76,5 @@ export:
     auto: true
 agent:
     profile: team-maintainer
+
+no-git-ops: false
