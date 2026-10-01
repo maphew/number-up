@@ -1,6 +1,7 @@
 import { createEngine, FAILURE_RULES, isOperator, RULES, type FailureName, type MoveEvent, type RuleName } from './engine.ts';
 import { findStart, generateWorld, WORLDS, WORLD_ORDER, type World, type WorldKey } from './world.ts';
 import { getVariant, variantFor } from './variants.ts';
+import { formatMoveLog, formatRunDump, summariseRun, type RunContext } from './debug.ts';
 
 interface Pos {
   x: number;
@@ -79,10 +80,15 @@ const els = {
   failLabel: mustEl('fail-label'),
   worldLabel: mustEl('world-label'),
   observation: mustEl('observation'),
-  history: mustEl('history'),
+  noteMeta: document.getElementById('note-meta'),
+  noteTotals: document.getElementById('note-totals'),
+  noteLog: document.getElementById('note-log'),
   feedbackLink: mail instanceof HTMLAnchorElement ? mail : null,
 };
 const svg = mustEl('grid');
+const copyBtn = document.getElementById('note-copy');
+const historyPre = mustEl('history');
+let fromLog: (Pos | null)[] = [];
 
 let tileNodes: (SVGElement | null)[][] = [];
 let playerNode: SVGElement;
@@ -223,6 +229,12 @@ function animateSuperpose(ev: MoveEvent, from: Pos, to: Pos) {
   fxLayer.appendChild(delta);
   setTimeout(() => delta.remove(), 700);
 
+  const resultText = ns('text', { x: 0, y: 0, class: `result-eq ${cls}` });
+  resultText.style.transform = `translate(${tx + 34}px, ${ty + 6}px)`;
+  resultText.textContent = `= ${fmtNumber(ev.valid ? ev.result : NaN)}`;
+  fxLayer.appendChild(resultText);
+  setTimeout(() => resultText.remove(), 900);
+
   flashStatus(cls);
 }
 
@@ -241,21 +253,34 @@ function showBlocked(direction: string) {
   obs.appendChild(line('flat', 'Blocked — edge of world.'));
 }
 
-function showObservation(move: MoveEvent, extra?: DocumentFragment | null) {
-  const obs = els.observation;
-  obs.textContent = '';
-  obs.appendChild(line('', `You moved ${move.direction}.`));
-  obs.appendChild(line('', ''));
-  obs.appendChild(line('', 'SUPERPOSITION'));
-  obs.appendChild(line('', ''));
-  obs.appendChild(line('', `${fmtNumber(move.oldNumber)}  ${move.destinationTile}`));
-  obs.appendChild(line('', ''));
-  obs.appendChild(line('', `Result: ${move.valid ? fmtNumber(move.result) : 'INVALID'}`));
+function verboseObservation(move: MoveEvent): DocumentFragment {
+  const frag = document.createDocumentFragment();
+  frag.appendChild(line('', `You moved ${move.direction}.`));
+  frag.appendChild(line('', ''));
+  frag.appendChild(line('', 'SUPERPOSITION'));
+  frag.appendChild(line('', ''));
+  frag.appendChild(line('', `${fmtNumber(move.oldNumber)}  ${move.destinationTile}`));
+  frag.appendChild(line('', `Pending: ${move.pendingAtEntry === null ? '—' : move.pendingAtEntry}`));
+  frag.appendChild(line('', `Result: ${move.valid ? fmtNumber(move.result) : 'INVALID'}`));
   const deltaNote = move.valid ? `  (Δ ${move.delta > 0 ? '+' : ''}${move.delta})` : '';
-  obs.appendChild(line(
+  frag.appendChild(line(
     move.valid ? statusClass(move) : 'down',
     `Number went UP: ${move.valid ? (move.wentUp ? 'YES' : 'NO') : '—'}${deltaNote}`
   ));
+  return frag;
+}
+
+function quietObservation(move: MoveEvent): DocumentFragment {
+  const frag = document.createDocumentFragment();
+  const glyph = move.valid ? (move.wentUp ? '↑' : move.delta < 0 ? '↓' : '—') : '✕';
+  frag.appendChild(line(move.valid ? statusClass(move) : 'down', `${glyph} ${fmtNumber(state.number)}`));
+  return frag;
+}
+
+function showObservation(move: MoveEvent, extra?: DocumentFragment | null) {
+  const obs = els.observation;
+  obs.textContent = '';
+  obs.appendChild(state.debug ? verboseObservation(move) : quietObservation(move));
   if (extra) {
     obs.appendChild(line('', ''));
     obs.appendChild(extra);
@@ -284,18 +309,15 @@ function renderStatus() {
 }
 
 function feedbackHref(): string {
-  const v = currentVariant();
   const lines = [
     `World: ${state.worldKey} — ${world().name}`,
-    `Variant: ${v ? `${v.name} (${v.id})` : `custom — ${state.ruleKey} × ${state.failKey}`}`,
+    `Variant: ${variantLabel()}`,
     `Collision rule: ${state.ruleKey} (${state.engine.rule.name})`,
     `Failure rule: ${state.failKey} (${state.engine.failure.name})`,
     `Number: ${fmtNumber(state.number)} after ${state.engine.turn} move${state.engine.turn === 1 ? '' : 's'}`,
     '',
     'Last moves:',
-    ...state.engine.history.slice(-10).map((ev) => (
-      `${ev.turn} ${ev.direction} ${ev.oldNumber} ${ev.destinationTile} → ${ev.valid ? ev.result : 'INVALID'}`
-    )),
+    ...formatMoveLog(state.engine.history.slice(-10), fromLog.slice(-10)),
     '',
     'What happened / what should have happened:',
   ];
@@ -313,7 +335,83 @@ function renderHistory() {
       : '→ INVALID';
     return `${String(ev.turn).padStart(3)} ${ev.direction.padEnd(5)} ${ev.oldNumber} ${ev.destinationTile} ${outcome}${ev.failed ? `  ☠ ${ev.failReason}` : ''}`;
   });
-  els.history.textContent = rows.join('\n');
+  historyPre.textContent = rows.join('\n');
+}
+
+function variantLabel(): string {
+  const v = currentVariant();
+  return v ? `${v.name} (${v.id})` : `custom — ${state.ruleKey} × ${state.failKey}`;
+}
+
+function runContext(): RunContext {
+  return {
+    ruleKey: state.ruleKey,
+    ruleName: state.engine.rule.name,
+    failKey: state.failKey,
+    failName: state.engine.failure.name,
+    worldKey: state.worldKey,
+    worldName: world().name,
+    variantLabel: variantLabel(),
+    seed: state.genSeed,
+    url: location.search || location.pathname,
+    number: state.number,
+  };
+}
+
+function renderNotebook() {
+  if (!state.debug) return;
+  renderHistory();
+  if (els.noteMeta) {
+    const ctx = runContext();
+    const v = currentVariant();
+    els.noteMeta.textContent = [
+      `Variant: ${ctx.variantLabel}`,
+      `Rule ${ctx.ruleKey} · fail ${ctx.failKey} · world ${ctx.worldKey}${ctx.seed === null ? '' : ` seed ${ctx.seed}`}`,
+      `URL: ${ctx.url}`,
+      `Pending: ${state.engine.pending === null ? '—' : state.engine.pending}`,
+      v ? `Hypothesis: ${v.hypothesis}` : 'Custom rule × fail pairing.',
+    ].join('\n');
+  }
+  if (els.noteTotals) {
+    const t = summariseRun(state.engine.history);
+    els.noteTotals.textContent =
+      `Turns ${t.turns} · peak ${t.peak === null ? '—' : t.peak} · final ${t.final === null ? '—' : t.final} · up ${t.up} · down ${t.down} · flat ${t.flat} · invalid ${t.invalid}`;
+  }
+  if (els.noteLog) {
+    els.noteLog.textContent = formatMoveLog(state.engine.history, fromLog).join('\n');
+  }
+}
+
+function copyRunDump() {
+  const dump = formatRunDump(runContext(), state.engine.history, fromLog);
+  const done = (ok: boolean) => {
+    if (copyBtn instanceof HTMLElement) {
+      copyBtn.textContent = ok ? 'copied' : 'copy failed';
+      setTimeout(() => { copyBtn.textContent = 'copy run'; }, 1200);
+    }
+  };
+  try {
+    const clip = navigator.clipboard;
+    if (clip) {
+      void clip.writeText(dump).then(() => done(true), () => fallbackCopy(dump, done));
+      return;
+    }
+  } catch { /* fall through to textarea fallback */ }
+  fallbackCopy(dump, done);
+}
+
+function fallbackCopy(text: string, done: (ok: boolean) => void) {
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    done(ok);
+  } catch {
+    done(false);
+  }
 }
 
 function render() {
@@ -322,7 +420,7 @@ function render() {
   playerNode.classList.toggle('dead', state.over);
   renderStatus();
   if (els.feedbackLink) els.feedbackLink.href = feedbackHref();
-  if (state.debug) renderHistory();
+  if (state.debug) renderNotebook();
 }
 
 const DIRECTIONS: Record<string, { dx: number; dy: number }> = {
@@ -355,6 +453,7 @@ function tryMove(name: string) {
   }
 
   const from = { ...state.pos };
+  fromLog.push({ ...from });
   const ev = state.engine.attempt(state.number, name.toUpperCase(), tileAt(nx, ny));
   state.number = ev.valid ? ev.result : NaN;
   state.pos = { x: nx, y: ny };
@@ -371,13 +470,14 @@ function restart(message?: string) {
   state.number = 0;
   state.pos = findStart(world());
   state.over = false;
+  fromLog = [];
   buildGrid();
   syncUrl();
   render();
   const v = currentVariant();
   const variantNote = v ? ` Variant ${v.name}.` : '';
   els.observation.textContent = message || `World ${state.worldKey} — ${world().name}.${variantNote} Number = 0.${IS_TOUCH ? ' Swipe the grid to move.' : ''}`;
-  if (state.debug) renderHistory();
+  if (state.debug) renderNotebook();
 }
 
 function syncUrl() {
@@ -391,6 +491,8 @@ function syncUrl() {
     else p.delete('variant');
     p.set('rule', state.ruleKey);
     p.set('fail', state.failKey);
+    if (state.debug) p.set('debug', '1');
+    else p.delete('debug');
     history.replaceState(null, '', `${location.pathname}?${p}`);
   } catch {
     /* non-serve contexts (sandboxed iframes) may block URL writes */
@@ -448,7 +550,14 @@ function toggleDebug() {
   state.debug = !state.debug;
   document.body.classList.toggle('debug', state.debug);
   document.querySelector('#help [data-action="debug"]')?.classList.toggle('on', state.debug);
-  if (state.debug) renderHistory();
+  const last = state.engine.history[state.engine.history.length - 1];
+  if (state.debug) {
+    renderNotebook();
+    if (last !== undefined) showObservation(last, last.failed ? showRunOver(last) : null);
+  } else if (last !== undefined) {
+    showObservation(last, last.failed ? showRunOver(last) : null);
+  }
+  syncUrl();
 }
 
 document.addEventListener('keydown', (e) => {
@@ -530,6 +639,10 @@ svg.addEventListener('touchend', (e) => {
 svg.addEventListener('touchcancel', () => {
   touchStart = null;
 }, { passive: false });
+
+if (copyBtn instanceof HTMLButtonElement) {
+  copyBtn.addEventListener('click', copyRunDump);
+}
 
 if (state.debug) document.body.classList.add('debug');
 restart();

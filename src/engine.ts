@@ -17,6 +17,7 @@ export interface AttemptBase {
   oldNumber: number;
   destinationTile: string;
   rule: string;
+  pendingAtEntry: number | null;
 }
 
 export interface ValidAttempt extends AttemptBase {
@@ -129,6 +130,7 @@ export interface Engine {
   readonly failureName: FailureName;
   readonly turn: number;
   readonly history: MoveEvent[];
+  readonly pending: number | null;
   reset(): void;
   attempt(currentNumber: number, direction: string, tile: string): MoveEvent;
 }
@@ -169,12 +171,16 @@ export function createEngine(ruleName: string, failureName: string): Engine {
     get history() {
       return history;
     },
+    get pending() {
+      return pending;
+    },
     reset() {
       pending = null;
       turn = 0;
       history.length = 0;
     },
     attempt(currentNumber, direction, tile) {
+      const pendingBefore = pending;
       const ctx: MoveContext = { pending };
       let result: number;
       try {
@@ -190,6 +196,7 @@ export function createEngine(ruleName: string, failureName: string): Engine {
         oldNumber: currentNumber,
         destinationTile: tile,
         rule: rule.name,
+        pendingAtEntry: pendingBefore,
       };
       const ev: AttemptOutcome = valid
         ? {

@@ -124,4 +124,19 @@ describe('createEngine wiring', () => {
       [1, 2],
     );
   });
+
+  it('exposes pending at entry on each event (observable-only)', () => {
+    const engine = createEngine('eval', 'none');
+    const first = engine.attempt(1, 'up', '6');
+    assert.equal(first.pendingAtEntry, null);
+    const second = engine.attempt(6, 'up', '+');
+    assert.equal(second.pendingAtEntry, 6);
+  });
+
+  it('exposes the live pending operand', () => {
+    const engine = createEngine('eval', 'none');
+    assert.equal(engine.pending, null);
+    engine.attempt(1, 'up', '6');
+    assert.equal(engine.pending, 6);
+  });
 });

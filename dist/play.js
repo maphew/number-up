@@ -98,12 +98,16 @@
       get history() {
         return history2;
       },
+      get pending() {
+        return pending;
+      },
       reset() {
         pending = null;
         turn = 0;
         history2.length = 0;
       },
       attempt(currentNumber, direction, tile) {
+        const pendingBefore = pending;
         const ctx = { pending };
         let result;
         try {
@@ -118,7 +122,8 @@
           direction,
           oldNumber: currentNumber,
           destinationTile: tile,
-          rule: rule.name
+          rule: rule.name,
+          pendingAtEntry: pendingBefore
         };
         const ev = valid ? {
           ...base,
@@ -301,6 +306,73 @@
     return null;
   }
 
+  // src/debug.ts
+  function fmtNum(n) {
+    return Number.isFinite(n) ? String(n) : "INVALID";
+  }
+  function fmtPending(p) {
+    return p === null ? "\u2014" : String(p);
+  }
+  function summariseRun(history2) {
+    const totals = {
+      turns: history2.length,
+      peak: null,
+      final: null,
+      up: 0,
+      down: 0,
+      flat: 0,
+      invalid: 0
+    };
+    let peak = null;
+    const consider = (n) => {
+      if (!Number.isFinite(n)) return;
+      if (peak === null || n > peak) peak = n;
+    };
+    for (const ev of history2) {
+      consider(ev.oldNumber);
+      if (!ev.valid) {
+        totals.invalid++;
+        continue;
+      }
+      consider(ev.result);
+      if (ev.delta > 0) totals.up++;
+      else if (ev.delta < 0) totals.down++;
+      else totals.flat++;
+    }
+    totals.peak = peak;
+    const last = history2[history2.length - 1];
+    totals.final = last === void 0 || !last.valid ? null : last.result;
+    return totals;
+  }
+  function formatMoveLog(history2, from) {
+    return history2.map((ev, i) => {
+      const outcome = ev.valid ? `\u2192 ${ev.result} (\u0394 ${ev.delta > 0 ? "+" : ""}${ev.delta}) ${ev.wentUp ? "UP" : "not up"}` : "\u2192 INVALID";
+      const kind = ev.destinationTile === "." ? "start" : classify(ev.destinationTile);
+      const at = from?.[i];
+      const pos = at === void 0 || at === null ? "" : ` from ${at.x},${at.y}`;
+      const fail = ev.failed && ev.failReason ? `  \u2620 ${ev.failReason}` : "";
+      return `${String(ev.turn).padStart(3)} ${ev.direction.padEnd(5)}${pos} ${fmtNum(ev.oldNumber)} ${ev.destinationTile} [${kind}] ${outcome} pending=${fmtPending(ev.pendingAtEntry)}${fail}`;
+    });
+  }
+  function formatRunDump(ctx, history2, from) {
+    const totals = summariseRun(history2);
+    const lines = [
+      "NUMBER UP \u2014 run dump",
+      `Variant: ${ctx.variantLabel}`,
+      `World: ${ctx.worldKey} \u2014 ${ctx.worldName}`,
+      `Collision rule: ${ctx.ruleKey} (${ctx.ruleName})`,
+      `Failure rule: ${ctx.failKey} (${ctx.failName})`,
+      `Seed: ${ctx.seed === null ? "\u2014" : String(ctx.seed)}`,
+      `URL: ${ctx.url}`,
+      `Number: ${fmtNum(ctx.number)}`,
+      `Turns ${totals.turns} \xB7 peak ${totals.peak === null ? "\u2014" : totals.peak} \xB7 final ${totals.final === null ? "\u2014" : totals.final} \xB7 up ${totals.up} \xB7 down ${totals.down} \xB7 flat ${totals.flat} \xB7 invalid ${totals.invalid}`,
+      "",
+      "Log:",
+      ...formatMoveLog(history2, from)
+    ];
+    return lines.join("\n");
+  }
+
   // src/play.ts
   function mustEl(id) {
     const el = document.getElementById(id);
@@ -353,10 +425,15 @@
     failLabel: mustEl("fail-label"),
     worldLabel: mustEl("world-label"),
     observation: mustEl("observation"),
-    history: mustEl("history"),
+    noteMeta: document.getElementById("note-meta"),
+    noteTotals: document.getElementById("note-totals"),
+    noteLog: document.getElementById("note-log"),
     feedbackLink: mail instanceof HTMLAnchorElement ? mail : null
   };
   var svg = mustEl("grid");
+  var copyBtn = document.getElementById("note-copy");
+  var historyPre = mustEl("history");
+  var fromLog = [];
   var tileNodes = [];
   var playerNode;
   var playerNumberNode;
@@ -473,6 +550,11 @@
     delta.textContent = deltaGlyph(ev);
     fxLayer.appendChild(delta);
     setTimeout(() => delta.remove(), 700);
+    const resultText = ns("text", { x: 0, y: 0, class: `result-eq ${cls}` });
+    resultText.style.transform = `translate(${tx + 34}px, ${ty + 6}px)`;
+    resultText.textContent = `= ${fmtNumber(ev.valid ? ev.result : NaN)}`;
+    fxLayer.appendChild(resultText);
+    setTimeout(() => resultText.remove(), 900);
     flashStatus(cls);
   }
   function line(cls, text) {
@@ -488,21 +570,32 @@
     obs.appendChild(line("", ""));
     obs.appendChild(line("flat", "Blocked \u2014 edge of world."));
   }
-  function showObservation(move, extra) {
-    const obs = els.observation;
-    obs.textContent = "";
-    obs.appendChild(line("", `You moved ${move.direction}.`));
-    obs.appendChild(line("", ""));
-    obs.appendChild(line("", "SUPERPOSITION"));
-    obs.appendChild(line("", ""));
-    obs.appendChild(line("", `${fmtNumber(move.oldNumber)}  ${move.destinationTile}`));
-    obs.appendChild(line("", ""));
-    obs.appendChild(line("", `Result: ${move.valid ? fmtNumber(move.result) : "INVALID"}`));
+  function verboseObservation(move) {
+    const frag = document.createDocumentFragment();
+    frag.appendChild(line("", `You moved ${move.direction}.`));
+    frag.appendChild(line("", ""));
+    frag.appendChild(line("", "SUPERPOSITION"));
+    frag.appendChild(line("", ""));
+    frag.appendChild(line("", `${fmtNumber(move.oldNumber)}  ${move.destinationTile}`));
+    frag.appendChild(line("", `Pending: ${move.pendingAtEntry === null ? "\u2014" : move.pendingAtEntry}`));
+    frag.appendChild(line("", `Result: ${move.valid ? fmtNumber(move.result) : "INVALID"}`));
     const deltaNote = move.valid ? `  (\u0394 ${move.delta > 0 ? "+" : ""}${move.delta})` : "";
-    obs.appendChild(line(
+    frag.appendChild(line(
       move.valid ? statusClass(move) : "down",
       `Number went UP: ${move.valid ? move.wentUp ? "YES" : "NO" : "\u2014"}${deltaNote}`
     ));
+    return frag;
+  }
+  function quietObservation(move) {
+    const frag = document.createDocumentFragment();
+    const glyph = move.valid ? move.wentUp ? "\u2191" : move.delta < 0 ? "\u2193" : "\u2014" : "\u2715";
+    frag.appendChild(line(move.valid ? statusClass(move) : "down", `${glyph} ${fmtNumber(state.number)}`));
+    return frag;
+  }
+  function showObservation(move, extra) {
+    const obs = els.observation;
+    obs.textContent = "";
+    obs.appendChild(state.debug ? verboseObservation(move) : quietObservation(move));
     if (extra) {
       obs.appendChild(line("", ""));
       obs.appendChild(extra);
@@ -528,16 +621,15 @@
     els.worldLabel.textContent = `${state.worldKey} \u2014 ${world().name}`;
   }
   function feedbackHref() {
-    const v = currentVariant();
     const lines = [
       `World: ${state.worldKey} \u2014 ${world().name}`,
-      `Variant: ${v ? `${v.name} (${v.id})` : `custom \u2014 ${state.ruleKey} \xD7 ${state.failKey}`}`,
+      `Variant: ${variantLabel()}`,
       `Collision rule: ${state.ruleKey} (${state.engine.rule.name})`,
       `Failure rule: ${state.failKey} (${state.engine.failure.name})`,
       `Number: ${fmtNumber(state.number)} after ${state.engine.turn} move${state.engine.turn === 1 ? "" : "s"}`,
       "",
       "Last moves:",
-      ...state.engine.history.slice(-10).map((ev) => `${ev.turn} ${ev.direction} ${ev.oldNumber} ${ev.destinationTile} \u2192 ${ev.valid ? ev.result : "INVALID"}`),
+      ...formatMoveLog(state.engine.history.slice(-10), fromLog.slice(-10)),
       "",
       "What happened / what should have happened:"
     ];
@@ -551,7 +643,80 @@
       const outcome = ev.valid ? `\u2192 ${ev.result} (\u0394 ${ev.delta > 0 ? "+" : ""}${ev.delta}) ${ev.wentUp ? "UP" : "not up"}` : "\u2192 INVALID";
       return `${String(ev.turn).padStart(3)} ${ev.direction.padEnd(5)} ${ev.oldNumber} ${ev.destinationTile} ${outcome}${ev.failed ? `  \u2620 ${ev.failReason}` : ""}`;
     });
-    els.history.textContent = rows.join("\n");
+    historyPre.textContent = rows.join("\n");
+  }
+  function variantLabel() {
+    const v = currentVariant();
+    return v ? `${v.name} (${v.id})` : `custom \u2014 ${state.ruleKey} \xD7 ${state.failKey}`;
+  }
+  function runContext() {
+    return {
+      ruleKey: state.ruleKey,
+      ruleName: state.engine.rule.name,
+      failKey: state.failKey,
+      failName: state.engine.failure.name,
+      worldKey: state.worldKey,
+      worldName: world().name,
+      variantLabel: variantLabel(),
+      seed: state.genSeed,
+      url: location.search || location.pathname,
+      number: state.number
+    };
+  }
+  function renderNotebook() {
+    if (!state.debug) return;
+    renderHistory();
+    if (els.noteMeta) {
+      const ctx = runContext();
+      const v = currentVariant();
+      els.noteMeta.textContent = [
+        `Variant: ${ctx.variantLabel}`,
+        `Rule ${ctx.ruleKey} \xB7 fail ${ctx.failKey} \xB7 world ${ctx.worldKey}${ctx.seed === null ? "" : ` seed ${ctx.seed}`}`,
+        `URL: ${ctx.url}`,
+        `Pending: ${state.engine.pending === null ? "\u2014" : state.engine.pending}`,
+        v ? `Hypothesis: ${v.hypothesis}` : "Custom rule \xD7 fail pairing."
+      ].join("\n");
+    }
+    if (els.noteTotals) {
+      const t = summariseRun(state.engine.history);
+      els.noteTotals.textContent = `Turns ${t.turns} \xB7 peak ${t.peak === null ? "\u2014" : t.peak} \xB7 final ${t.final === null ? "\u2014" : t.final} \xB7 up ${t.up} \xB7 down ${t.down} \xB7 flat ${t.flat} \xB7 invalid ${t.invalid}`;
+    }
+    if (els.noteLog) {
+      els.noteLog.textContent = formatMoveLog(state.engine.history, fromLog).join("\n");
+    }
+  }
+  function copyRunDump() {
+    const dump = formatRunDump(runContext(), state.engine.history, fromLog);
+    const done = (ok) => {
+      if (copyBtn instanceof HTMLElement) {
+        copyBtn.textContent = ok ? "copied" : "copy failed";
+        setTimeout(() => {
+          copyBtn.textContent = "copy run";
+        }, 1200);
+      }
+    };
+    try {
+      const clip = navigator.clipboard;
+      if (clip) {
+        void clip.writeText(dump).then(() => done(true), () => fallbackCopy(dump, done));
+        return;
+      }
+    } catch {
+    }
+    fallbackCopy(dump, done);
+  }
+  function fallbackCopy(text, done) {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      ta.remove();
+      done(ok);
+    } catch {
+      done(false);
+    }
   }
   function render() {
     placePlayer();
@@ -559,7 +724,7 @@
     playerNode.classList.toggle("dead", state.over);
     renderStatus();
     if (els.feedbackLink) els.feedbackLink.href = feedbackHref();
-    if (state.debug) renderHistory();
+    if (state.debug) renderNotebook();
   }
   var DIRECTIONS = {
     up: { dx: 0, dy: -1 },
@@ -589,6 +754,7 @@
       return;
     }
     const from = { ...state.pos };
+    fromLog.push({ ...from });
     const ev = state.engine.attempt(state.number, name.toUpperCase(), tileAt(nx, ny));
     state.number = ev.valid ? ev.result : NaN;
     state.pos = { x: nx, y: ny };
@@ -603,13 +769,14 @@
     state.number = 0;
     state.pos = findStart(world());
     state.over = false;
+    fromLog = [];
     buildGrid();
     syncUrl();
     render();
     const v = currentVariant();
     const variantNote = v ? ` Variant ${v.name}.` : "";
     els.observation.textContent = message || `World ${state.worldKey} \u2014 ${world().name}.${variantNote} Number = 0.${IS_TOUCH ? " Swipe the grid to move." : ""}`;
-    if (state.debug) renderHistory();
+    if (state.debug) renderNotebook();
   }
   function syncUrl() {
     try {
@@ -622,6 +789,8 @@
       else p.delete("variant");
       p.set("rule", state.ruleKey);
       p.set("fail", state.failKey);
+      if (state.debug) p.set("debug", "1");
+      else p.delete("debug");
       history.replaceState(null, "", `${location.pathname}?${p}`);
     } catch {
     }
@@ -670,7 +839,14 @@
     state.debug = !state.debug;
     document.body.classList.toggle("debug", state.debug);
     document.querySelector('#help [data-action="debug"]')?.classList.toggle("on", state.debug);
-    if (state.debug) renderHistory();
+    const last = state.engine.history[state.engine.history.length - 1];
+    if (state.debug) {
+      renderNotebook();
+      if (last !== void 0) showObservation(last, last.failed ? showRunOver(last) : null);
+    } else if (last !== void 0) {
+      showObservation(last, last.failed ? showRunOver(last) : null);
+    }
+    syncUrl();
   }
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -745,6 +921,9 @@
   svg.addEventListener("touchcancel", () => {
     touchStart = null;
   }, { passive: false });
+  if (copyBtn instanceof HTMLButtonElement) {
+    copyBtn.addEventListener("click", copyRunDump);
+  }
   if (state.debug) document.body.classList.add("debug");
   restart();
 })();

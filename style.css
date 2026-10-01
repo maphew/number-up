@@ -205,6 +205,53 @@ body {
   font-weight: 700;
 }
 
+.result-eq {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: inherit;
+  text-anchor: start;
+  pointer-events: none;
+  animation: rise 850ms ease-out forwards;
+}
+
+.result-eq.up { fill: var(--up); }
+.result-eq.down { fill: var(--down); }
+.result-eq.flat { fill: var(--flat); }
+
+#notebook {
+  border-top: 1px solid var(--line);
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+#note-meta,
+#note-log {
+  color: var(--dim);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
+#note-totals {
+  font-size: 12px;
+  margin: 6px 0;
+}
+
+#note-actions {
+  margin: 6px 0 2px;
+}
+
+#note-copy {
+  font: inherit;
+  font-size: 11px;
+  padding: 6px 10px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
 #history {
   color: var(--dim);
   font-size: 12px;

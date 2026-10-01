@@ -42,14 +42,19 @@ Any other rule/fail pairing plays as **custom** (shown in the header).
 - Touch: swipe the grid to move; tap the grid to restart a finished run
 - `R` (or Enter): restart the run
 - `Esc`: back to the variant catalogue
-- `/`: toggle verbose debug observation (also `?debug=1`)
+- `/`: toggle the lab-notebook debug panel (also `?debug=1`, round-tripped in
+  the URL). Normal play stays quiet: the board shows the result beside the
+  cell, blocked moves get one line, and only debug narrates the arithmetic.
+  Debug shows pending operand, rule/fail/world/variant/seed, the full move
+  log, run totals, and a copy-run dump for notebooks and bug reports.
 - `N`: next test world
 - `G`: generate a fresh seeded world (`?world=gen&seed=N` is written to the URL,
   so the exact map can be shared)
 - `C`: cycle collision rule
 - `F`: cycle failure rule
 - `@` chip or the feedback line: send feedback with your current run state
-  attached → maphew+number-up@gmail.com
+  attached → maphew+number-up@gmail.com (full move log with pending operand,
+  not just the last ten moves)
 - Shortcut chips below the map (`R / N G C F / @`) are clickable and perform
   each shortcut with mouse or touch
 - URL params: `?variant=verbs|accretion|becoming|rehearsal|hoarder|masquerade`
@@ -79,8 +84,9 @@ Any other rule/fail pairing plays as **custom** (shown in the header).
   (`?world=…&rule=…`) redirect there automatically.
 
 Every move appends an event
-`{turn, direction, oldNumber, destinationTile, result, delta, wentUp, valid, failed, failReason}`
-to the engine's in-memory history, visible in debug mode.
+`{turn, direction, oldNumber, destinationTile, result, delta, wentUp, valid, failed, failReason, pendingAtEntry}`
+to the engine's in-memory history. Normal play shows one quiet glyph line per
+move; debug mode renders the full notebook (context, totals, log, copy-run).
 
 ## Do not add
 
