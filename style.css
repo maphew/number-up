@@ -92,6 +92,7 @@ body {
 }
 
 #grid {
+  --u: 100px;
   display: block;
   width: 100%;
   height: auto;
@@ -103,11 +104,12 @@ body {
 .cell-line {
   stroke: var(--line);
   stroke-width: 1;
+  fill: none;
 }
 
 .tile {
   fill: var(--ink);
-  font-size: 44px;
+  font-size: calc(var(--u) * 0.44);
   font-family: inherit;
   text-anchor: middle;
   dominant-baseline: central;
@@ -127,7 +129,7 @@ body {
 
 #player .pnum {
   fill: #14140f;
-  font-size: 30px;
+  font-size: calc(var(--u) * 0.3);
   font-weight: 700;
   font-family: inherit;
   text-anchor: middle;
@@ -156,7 +158,7 @@ body {
 
 .fly {
   fill: var(--dot);
-  font-size: 40px;
+  font-size: calc(var(--u) * 0.4);
   font-weight: 700;
   font-family: inherit;
   text-anchor: middle;
@@ -166,7 +168,7 @@ body {
 }
 
 .delta {
-  font-size: 26px;
+  font-size: calc(var(--u) * 0.26);
   font-weight: 700;
   font-family: inherit;
   text-anchor: middle;
@@ -177,7 +179,7 @@ body {
 .delta.up { fill: var(--up); }
 .delta.down { fill: var(--down); }
 .delta.flat { fill: var(--flat); }
-.delta.invalid { fill: var(--down); font-size: 20px; }
+.delta.invalid { fill: var(--down); font-size: calc(var(--u) * 0.2); }
 
 @keyframes rise {
   0% { opacity: 0; transform: translateY(6px); }
@@ -206,7 +208,7 @@ body {
 }
 
 .result-eq {
-  font-size: 22px;
+  font-size: calc(var(--u) * 0.22);
   font-weight: 700;
   font-family: inherit;
   text-anchor: start;

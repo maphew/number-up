@@ -60,6 +60,24 @@ Any other rule/fail pairing plays as **custom** (shown in the header).
 - URL params: `?variant=verbs|accretion|becoming|rehearsal|hoarder|masquerade`
   (sets rule, failure, and starting world; takes precedence) or the lower-level
   `?world=full|a|b|c|d|gen&seed=N&rule=replace|add|eval&fail=notUp|none&debug=1`
+- URL param `?layout=hex`: play the same worlds on a hexagonal lattice instead
+  of the square grid (experiment; square stays the default and the gallery
+  default). The board becomes pointy-top hexes in offset rows (odd-r) — every
+  world's rows array reads as hex rows unchanged, and `?world=gen&seed=N`
+  generates the same map for both layouts. Six neighbours per cell:
+
+  | direction | keys |
+  |-----------|------|
+  | W / E (along the row) | `←` `→` / `A` `D` / numpad `4` `6` |
+  | NW / NE | `Q` / `E` / numpad `7` `9` |
+  | SW / SE | `Z` / `C` / numpad `1` `3` |
+
+  Swipes snap to the nearest of the six neighbours by angle (a straight
+  up/down swipe resolves NE/SE — hex rows have no north/south neighbour, and
+  pressing `↑`/`↓`/`W`/`S` in hex explains that instead of moving). The
+  rule-cycle shortcut moves from `C` to `V` in hex (`C` is now the SE move);
+  the active mapping is always printed in the help row and the debug
+  notebook.
 
 ## Where things live
 
@@ -78,6 +96,11 @@ Any other rule/fail pairing plays as **custom** (shown in the header).
 - **Test worlds**: `world.js` → `WORLDS`. Hand-authored 5×5 rows of tiles
   (`+ − × ÷` or numbers); `.` marks the starting cell. `generateWorld(seed)`
   builds a deterministic random 5×5 grid the same shape.
+- **Lattice**: `lattice.ts` → `createSquareLattice` / `createHexLattice`.
+  Pure board geometry behind one small interface: centres, steps (null =
+  edge), swipe resolution, bounds, cell path. Square is the default;
+  `?layout=hex` swaps in pointy-top hexes in odd-r offset rows (six
+  neighbours, same world data). Covered by `test/lattice.test.js`.
 - **Wiring, rendering, animation, input**: `main.js`; looks: `style.css`.
 - **Front page**: `index.html` + `gallery.js` — the catalogue, rendered from
   `variants.js`. The game page is `play.html`; old deep links

@@ -306,6 +306,112 @@
     return null;
   }
 
+  // src/lattice.ts
+  var SQUARE_STEPS = {
+    up: { x: 0, y: -1 },
+    down: { x: 0, y: 1 },
+    left: { x: -1, y: 0 },
+    right: { x: 1, y: 0 }
+  };
+  function createSquareLattice(cols, rows, cell) {
+    return {
+      id: "square",
+      directions: ["up", "down", "left", "right"],
+      stepLength: cell,
+      centre(x, y) {
+        return { cx: x * cell + cell / 2, cy: y * cell + cell / 2 };
+      },
+      step(x, y, dir) {
+        const d = SQUARE_STEPS[dir];
+        if (!d) return null;
+        const nx = x + d.x;
+        const ny = y + d.y;
+        if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return null;
+        return { x: nx, y: ny };
+      },
+      nearest(_x, _y, vx, vy) {
+        return Math.abs(vx) > Math.abs(vy) ? vx > 0 ? "right" : "left" : vy > 0 ? "down" : "up";
+      },
+      bounds() {
+        return { minX: 0, minY: 0, width: cols * cell, height: rows * cell };
+      },
+      cellPath() {
+        return null;
+      }
+    };
+  }
+  var SQRT3 = Math.sqrt(3);
+  var HEX_STEPS = {
+    E: () => [1, 0],
+    W: () => [-1, 0],
+    NE: (y) => [y & 1, -1],
+    SE: (y) => [y & 1, 1],
+    NW: (y) => [(y & 1) - 1, -1],
+    SW: (y) => [(y & 1) - 1, 1]
+  };
+  var HEX_DIRS = ["NE", "NW", "E", "W", "SE", "SW"];
+  function round6(n) {
+    return Math.round(n * 1e6) / 1e6;
+  }
+  function createHexLattice(cols, rows, r) {
+    const hw = SQRT3 * r;
+    const vh = 1.5 * r;
+    const vec = {
+      NE: [hw / 2, -vh],
+      NW: [-hw / 2, -vh],
+      E: [hw, 0],
+      W: [-hw, 0],
+      SE: [hw / 2, vh],
+      SW: [-hw / 2, vh]
+    };
+    return {
+      id: "hex",
+      directions: HEX_DIRS,
+      stepLength: hw,
+      centre(x, y) {
+        return { cx: hw * (x + (y & 1) / 2), cy: vh * y };
+      },
+      step(x, y, dir) {
+        const f = HEX_STEPS[dir];
+        if (!f) return null;
+        const [dx, dy] = f(y);
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= cols || ny >= rows) return null;
+        return { x: nx, y: ny };
+      },
+      nearest(_x, _y, vx, vy) {
+        let best = HEX_DIRS[0] ?? "NE";
+        let bestDot = -Infinity;
+        for (const dir of HEX_DIRS) {
+          const [ux, uy] = vec[dir];
+          const dot = vx * ux + vy * uy;
+          if (dot > bestDot) {
+            bestDot = dot;
+            best = dir;
+          }
+        }
+        return best;
+      },
+      bounds() {
+        return {
+          minX: -hw / 2,
+          minY: -r,
+          width: hw * (cols + 0.5),
+          height: vh * (rows - 1) + 2 * r
+        };
+      },
+      cellPath(cx, cy) {
+        const pts = [];
+        for (let k = 0; k < 6; k++) {
+          const a = (60 * k - 90) * Math.PI / 180;
+          pts.push(`${round6(cx + r * Math.cos(a))} ${round6(cy + r * Math.sin(a))}`);
+        }
+        return `M${pts.join(" L")}Z`;
+      }
+    };
+  }
+
   // src/debug.ts
   function fmtNum(n) {
     return Number.isFinite(n) ? String(n) : "INVALID";
@@ -390,6 +496,7 @@
   }
   var params = new URLSearchParams(location.search);
   var IS_TOUCH = window.matchMedia("(pointer: coarse)").matches;
+  var IS_HEX = params.get("layout") === "hex";
   var variantParam = params.get("variant");
   var rawWorld = params.get("world");
   var rawVariant = variantParam ? getVariant(variantParam) : null;
@@ -416,6 +523,16 @@
     state.genSeed = Number.isInteger(s) && s > 0 ? s : Math.floor(Math.random() * 99999) + 1;
   }
   var CELL = 100;
+  var CANVAS = 500;
+  function hexRadius(cols, rows) {
+    return Math.min(CANVAS / (Math.sqrt(3) * (cols + 0.5)), CANVAS / (1.5 * rows + 0.5));
+  }
+  function buildLattice(cols, rows) {
+    if (!IS_HEX) return createSquareLattice(cols, rows, CELL);
+    return createHexLattice(cols, rows, hexRadius(cols, rows));
+  }
+  var lat = createSquareLattice(5, 5, CELL);
+  var unit = CELL;
   var mail = document.getElementById("feedback-mail");
   var els = {
     number: mustEl("number"),
@@ -461,15 +578,35 @@
     return node;
   }
   function cellCenter(x, y) {
-    return { cx: x * CELL + CELL / 2, cy: y * CELL + CELL / 2 };
+    return lat.centre(x, y);
   }
   function buildGrid() {
     while (svg.firstChild) svg.removeChild(svg.firstChild);
     tileNodes = [];
     const rows = world().rows;
-    for (let i = 0; i <= rows.length; i++) {
-      svg.appendChild(ns("line", { x1: 0, y1: i * CELL, x2: rows.length * CELL, y2: i * CELL, class: "cell-line" }));
-      svg.appendChild(ns("line", { x1: i * CELL, y1: 0, x2: i * CELL, y2: rows.length * CELL, class: "cell-line" }));
+    const cols = rows.reduce((m, row) => Math.max(m, row?.length ?? 0), 0);
+    lat = buildLattice(cols, rows.length);
+    unit = IS_HEX ? hexRadius(cols, rows.length) : CELL;
+    const b = lat.bounds();
+    svg.setAttribute("viewBox", `${b.minX} ${b.minY} ${b.width} ${b.height}`);
+    svg.classList.toggle("hex", lat.id === "hex");
+    svg.style.setProperty("--u", `${unit}px`);
+    if (lat.id === "square") {
+      for (let i = 0; i <= rows.length; i++) {
+        svg.appendChild(ns("line", { x1: 0, y1: i * unit, x2: rows.length * unit, y2: i * unit, class: "cell-line" }));
+        svg.appendChild(ns("line", { x1: i * unit, y1: 0, x2: i * unit, y2: rows.length * unit, class: "cell-line" }));
+      }
+    } else {
+      for (let y = 0; y < rows.length; y++) {
+        const row = rows[y];
+        if (row === void 0) continue;
+        for (let x = 0; x < row.length; x++) {
+          const { cx, cy } = lat.centre(x, y);
+          const d = lat.cellPath(cx, cy);
+          if (d === null) continue;
+          svg.appendChild(ns("path", { d, class: "cell-line" }));
+        }
+      }
     }
     for (let y = 0; y < rows.length; y++) {
       const row = rows[y];
@@ -477,7 +614,7 @@
       const nodes = [];
       tileNodes.push(nodes);
       for (let x = 0; x < row.length; x++) {
-        const { cx, cy } = cellCenter(x, y);
+        const { cx, cy } = lat.centre(x, y);
         const glyph = row[x];
         if (glyph === void 0) continue;
         if (glyph === ".") {
@@ -493,7 +630,7 @@
     fxLayer = ns("g", { id: "fx" });
     svg.appendChild(fxLayer);
     playerNode = ns("g", { id: "player" });
-    playerNode.appendChild(ns("circle", { cx: 0, cy: 0, r: 30, class: "dot" }));
+    playerNode.appendChild(ns("circle", { cx: 0, cy: 0, r: unit * 0.3, class: "dot" }));
     playerNumberNode = ns("text", { x: 0, y: 1, class: "pnum" });
     playerNode.appendChild(playerNumberNode);
     svg.appendChild(playerNode);
@@ -546,12 +683,12 @@
     playerNumberNode.classList.add("pop");
     const cls = statusClass(ev);
     const delta = ns("text", { x: 0, y: 0, class: `delta ${cls}` });
-    delta.style.transform = `translate(${tx}px, ${ty - 44}px)`;
+    delta.style.transform = `translate(${tx}px, ${ty - unit * 0.44}px)`;
     delta.textContent = deltaGlyph(ev);
     fxLayer.appendChild(delta);
     setTimeout(() => delta.remove(), 700);
     const resultText = ns("text", { x: 0, y: 0, class: `result-eq ${cls}` });
-    resultText.style.transform = `translate(${tx + 34}px, ${ty + 6}px)`;
+    resultText.style.transform = `translate(${tx + unit * 0.34}px, ${ty + unit * 0.06}px)`;
     resultText.textContent = `= ${fmtNumber(ev.valid ? ev.result : NaN)}`;
     fxLayer.appendChild(resultText);
     setTimeout(() => resultText.remove(), 900);
@@ -672,6 +809,7 @@
       els.noteMeta.textContent = [
         `Variant: ${ctx.variantLabel}`,
         `Rule ${ctx.ruleKey} \xB7 fail ${ctx.failKey} \xB7 world ${ctx.worldKey}${ctx.seed === null ? "" : ` seed ${ctx.seed}`}`,
+        IS_HEX ? "Layout hex (pointy-top odd-r, 6 neighbours) \u2014 \u2190\u2192/AD = W E \xB7 Q/E = NW/NE \xB7 Z/C = SW/SE \xB7 numpad 7/9/1/3 diagonals \xB7 swipe snaps to nearest of 6 (straight up/down \u2192 NE/SE)" : "Layout square (4 neighbours) \u2014 arrows / WASD / numpad \xB7 swipe dominant axis",
         `URL: ${ctx.url}`,
         `Pending: ${state.engine.pending === null ? "\u2014" : state.engine.pending}`,
         v ? `Hypothesis: ${v.hypothesis}` : "Custom rule \xD7 fail pairing."
@@ -726,12 +864,6 @@
     if (els.feedbackLink) els.feedbackLink.href = feedbackHref();
     if (state.debug) renderNotebook();
   }
-  var DIRECTIONS = {
-    up: { dx: 0, dy: -1 },
-    down: { dx: 0, dy: 1 },
-    left: { dx: -1, dy: 0 },
-    right: { dx: 1, dy: 0 }
-  };
   function tryMove(name) {
     if (state.over) {
       const obs = els.observation;
@@ -741,12 +873,8 @@
       obs.appendChild(line("flat", IS_TOUCH ? "Run is over \u2014 tap the grid to restart." : "Run is over \u2014 press R to restart."));
       return;
     }
-    const step = DIRECTIONS[name];
-    if (!step) return;
-    const nx = state.pos.x + step.dx;
-    const ny = state.pos.y + step.dy;
-    const size = world().rows.length;
-    if (nx < 0 || ny < 0 || nx >= size || ny >= size) {
+    const next = lat.step(state.pos.x, state.pos.y, name);
+    if (next === null) {
       playerNode.classList.remove("pop");
       void playerNode.getBoundingClientRect();
       playerNode.classList.add("pop");
@@ -755,14 +883,20 @@
     }
     const from = { ...state.pos };
     fromLog.push({ ...from });
-    const ev = state.engine.attempt(state.number, name.toUpperCase(), tileAt(nx, ny));
+    const ev = state.engine.attempt(state.number, name.toUpperCase(), tileAt(next.x, next.y));
     state.number = ev.valid ? ev.result : NaN;
-    state.pos = { x: nx, y: ny };
+    state.pos = next;
     render();
     animateSuperpose(ev, from, state.pos);
     showObservation(ev, ev.failed ? showRunOver(ev) : null);
     if (ev.failed) state.over = true;
     render();
+  }
+  function movementNote() {
+    if (IS_TOUCH) {
+      return IS_HEX ? " Swipe toward a neighbour \u2014 the swipe snaps to the nearest of the six." : " Swipe the grid to move.";
+    }
+    return IS_HEX ? " Move: A/D or \u2190\u2192 = W/E \xB7 Q/E = NW/NE \xB7 Z/C = SW/SE." : "";
   }
   function restart(message) {
     applyEngine();
@@ -775,7 +909,7 @@
     render();
     const v = currentVariant();
     const variantNote = v ? ` Variant ${v.name}.` : "";
-    els.observation.textContent = message || `World ${state.worldKey} \u2014 ${world().name}.${variantNote} Number = 0.${IS_TOUCH ? " Swipe the grid to move." : ""}`;
+    els.observation.textContent = message || `World ${state.worldKey} \u2014 ${world().name}.${variantNote} Number = 0.${movementNote()}`;
     if (state.debug) renderNotebook();
   }
   function syncUrl() {
@@ -789,6 +923,8 @@
       else p.delete("variant");
       p.set("rule", state.ruleKey);
       p.set("fail", state.failKey);
+      if (IS_HEX) p.set("layout", "hex");
+      else p.delete("layout");
       if (state.debug) p.set("debug", "1");
       else p.delete("debug");
       history.replaceState(null, "", `${location.pathname}?${p}`);
@@ -821,7 +957,22 @@
   function applyEngine() {
     state.engine = createEngine(state.ruleKey, state.failKey);
   }
-  var KEYS = {
+  var MOVE_KEYS = IS_HEX ? {
+    ArrowLeft: "W",
+    ArrowRight: "E",
+    a: "W",
+    d: "E",
+    q: "NW",
+    e: "NE",
+    z: "SW",
+    c: "SE",
+    Numpad4: "W",
+    Numpad6: "E",
+    Numpad7: "NW",
+    Numpad9: "NE",
+    Numpad1: "SW",
+    Numpad3: "SE"
+  } : {
     ArrowUp: "up",
     ArrowDown: "down",
     ArrowLeft: "left",
@@ -835,6 +986,14 @@
     Numpad4: "left",
     Numpad6: "right"
   };
+  var HEX_NO_NS_KEYS = /* @__PURE__ */ new Set(["ArrowUp", "ArrowDown", "w", "s", "W", "S", "Numpad8", "Numpad2", "8", "2"]);
+  function showHexNoNorthSouth() {
+    const obs = els.observation;
+    obs.textContent = "";
+    obs.appendChild(line("", "Hex rows have no north/south neighbour."));
+    obs.appendChild(line("", ""));
+    obs.appendChild(line("flat", "Diagonals: Q/E = NW/NE, Z/C = SW/SE (numpad 7 9 1 3)."));
+  }
   function toggleDebug() {
     state.debug = !state.debug;
     document.body.classList.toggle("debug", state.debug);
@@ -850,7 +1009,7 @@
   }
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const move = KEYS[e.key] || KEYS[e.code];
+    const move = MOVE_KEYS[e.key] || MOVE_KEYS[e.code];
     if (move) {
       e.preventDefault();
       tryMove(move);
@@ -869,10 +1028,13 @@
       nextWorld();
     } else if (k === "g") {
       nextGenerated();
-    } else if (k === "c") {
+    } else if (k === "c" || IS_HEX && k === "v") {
       nextRule();
     } else if (k === "f") {
       nextFailure();
+    } else if (IS_HEX && HEX_NO_NS_KEYS.has(e.key)) {
+      e.preventDefault();
+      showHexNoNorthSouth();
     }
   });
   document.getElementById("help")?.addEventListener("click", (e) => {
@@ -916,13 +1078,19 @@
       if (state.over) restart();
       return;
     }
-    tryMove(ax > ay ? dx > 0 ? "right" : "left" : dy > 0 ? "down" : "up");
+    tryMove(lat.nearest(state.pos.x, state.pos.y, dx, dy));
   }, { passive: false });
   svg.addEventListener("touchcancel", () => {
     touchStart = null;
   }, { passive: false });
   if (copyBtn instanceof HTMLButtonElement) {
     copyBtn.addEventListener("click", copyRunDump);
+  }
+  if (IS_HEX) {
+    const keyNote = document.getElementById("key-note");
+    if (keyNote) keyNote.textContent = "\u2190\u2192/AD = W\xB7E \xB7 Q E Z C = NW\xB7NE\xB7SW\xB7SE / swipe";
+    const ruleKbd = document.querySelector('#help [data-action="rule"] kbd');
+    if (ruleKbd) ruleKbd.textContent = "V";
   }
   if (state.debug) document.body.classList.add("debug");
   restart();
