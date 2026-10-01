@@ -3,7 +3,7 @@
 **eval × none** — the full verb grammar, with the stakes removed
 
 Play: <https://maphew.github.io/number-up/play.html?variant=rehearsal>
-Registry: `variants.js` → `VARIANTS.rehearsal` (collision `eval`, failure `none`, world b)
+Registry: `src/variants.ts` → `VARIANTS.rehearsal` (collision `eval`, failure `none`, world b)
 
 ## Hypothesis
 

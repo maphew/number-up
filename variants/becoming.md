@@ -3,7 +3,7 @@
 **replace × notUp** — you become what you touch; touch smaller and the run ends
 
 Play: <https://maphew.github.io/number-up/play.html?variant=becoming>
-Registry: `variants.js` → `VARIANTS.becoming` (collision `replace`, failure `notUp`, world c)
+Registry: `src/variants.ts` → `VARIANTS.becoming` (collision `replace`, failure `notUp`, world c)
 
 ## Hypothesis
 

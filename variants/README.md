@@ -8,7 +8,7 @@ mean?* Concretely it is a named combination of:
 - a suggested **starting world** (any world can be swapped in play with `N` / `G`),
 - a **hypothesis**: what this variant exists to prove or disprove.
 
-The registry in [`variants.js`](../variants.js) is the single source of truth. The
+The registry in [`src/variants.ts`](../src/variants.ts) is the single source of truth. The
 front page (<https://maphew.github.io/number-up/>) renders the catalogue straight
 from it, and the game reads `?variant=<id>`. Long-form tracking for each variant
 lives in its file here: rules, hypothesis, play feedback, and musings on branching.
@@ -41,7 +41,7 @@ VARIANT readout; it can still be reached with `?rule=` / `?fail=`.
 
 ## Adding a variant
 
-1. Add an entry to `VARIANTS` in `variants.js` (id, name, tagline, how, rule,
+1. Add an entry to `VARIANTS` in `src/variants.ts` (id, name, tagline, how, rule,
    fail, world, hypothesis). The name should come from the feature or rule that
    makes it different from every other variant. Write the tagline as shorthand,
    the `how` line in plain second person, and the hypothesis as the bet.
@@ -57,7 +57,7 @@ Skeleton:
 **<rule> × <fail>** — <tagline>
 
 Play: https://maphew.github.io/number-up/play.html?variant=<id>
-Registry: `variants.js` → `VARIANTS.<id>`
+Registry: `src/variants.ts` → `VARIANTS.<id>`
 
 ## Hypothesis
 

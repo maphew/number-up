@@ -3,7 +3,7 @@
 **add × none** — everything sticks, nothing can hurt you
 
 Play: <https://maphew.github.io/number-up/play.html?variant=hoarder>
-Registry: `variants.js` → `VARIANTS.hoarder` (collision `add`, failure `none`, world full)
+Registry: `src/variants.ts` → `VARIANTS.hoarder` (collision `add`, failure `none`, world full)
 
 ## Hypothesis
 

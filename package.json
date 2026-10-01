@@ -1,0 +1,17 @@
+{
+  "name": "number-up",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Number Up browser prototype",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/",
+    "typecheck": "tsc --noEmit",
+    "build": "esbuild src/play.ts --bundle --format=iife --outfile=dist/play.js --target=es2020 --sourcemap && esbuild src/gallery.ts --bundle --format=iife --outfile=dist/gallery.js --target=es2020 --sourcemap",
+    "verify": "npm run typecheck && npm test && npm run build"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2"
+  }
+}

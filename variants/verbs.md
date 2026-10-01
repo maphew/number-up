@@ -3,7 +3,7 @@
 **eval × notUp** — operators are verbs, numbers are fuel
 
 Play: <https://maphew.github.io/number-up/play.html?variant=verbs>
-Registry: `variants.js` → `VARIANTS.verbs` (collision `eval`, failure `notUp`, world b)
+Registry: `src/variants.ts` → `VARIANTS.verbs` (collision `eval`, failure `notUp`, world b)
 
 ## Hypothesis
 

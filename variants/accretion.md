@@ -3,7 +3,7 @@
 **add × notUp** — everything you touch sticks; only growth keeps you alive
 
 Play: <https://maphew.github.io/number-up/play.html?variant=accretion>
-Registry: `variants.js` → `VARIANTS.accretion` (collision `add`, failure `notUp`, world a)
+Registry: `src/variants.ts` → `VARIANTS.accretion` (collision `add`, failure `notUp`, world a)
 
 ## Hypothesis
 
@@ -27,7 +27,11 @@ game together and the lab should look elsewhere for the core interaction.
 
 ## Feedback
 
-- (nothing yet)
+- 2026-10-01 — TypeScript retrofit recorded a notebook/code split, left as-is.
+  Hypothesis here says tension is "a path where every number is bigger than
+  the last." That is replace/Becoming. Under `add`, any positive tile goes
+  UP (`n + k > n` for `k > 0`); death is a `0` or a sign (flat). Gallery
+  `how` already matches the code. Not reconciled.
 
 ## Musings: branches and extensions
 

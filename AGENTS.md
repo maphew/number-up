@@ -104,37 +104,77 @@ the full tree, and `swamp help model method run` scopes to a subtree.
 
 ## Build & Test
 
-No build step: plain `<script>` tags with globals (no ES modules — the
-prototype must open directly via `file://`, which CORS blocks for modules).
-No automated test suite; verify manually in the browser.
+TypeScript sources live in `src/` as ES modules with real imports/exports
+(strict `tsc --noEmit` + `noUncheckedIndexedAccess` + `noUnusedLocals` +
+`noUnusedParameters`; no `any`, no `globalThis` handoffs). esbuild bundles
+them per page into a single IIFE
+(`dist/play.js`, `dist/gallery.js`) whose output contains zero import/export
+statements — ES modules over `file://` are CORS-blocked, the IIFE is not, so
+both pages still open directly from disk, no server.
+
+**The bundle is committed** (`dist/` is tracked). Reason: the GitHub Pages
+workflow uploads path `.` verbatim with no build step and keeps that posture —
+a bare checkout plays from `file://` with no Node at all, and building in CI
+before uploading `.` would publish `node_modules` too (upload-pages-artifact
+excludes only `.git`/`.github`). The stale-output hazard is covered two ways:
+the build is ~2 ms, and the Pages workflow fails the deploy when the committed
+bundle doesn't match `src/` (build + `git diff` guard). tsc-emitted plain
+scripts (`--module none`, one file per source) were considered and rejected:
+per-file output goes stale independently and couples page behavior to
+`<script>` tag order; the IIFE bundle has neither problem.
 
 ```bash
-# Serve locally (then open http://localhost:8123), or just open index.html via file://
+npm install        # once (devDeps: typescript, esbuild)
+npm test           # node:test suite (test/) — no build, no install needed
+npm run typecheck  # tsc --noEmit
+npm run build      # esbuild → dist/play.js + dist/gallery.js + source maps
+npm run verify     # typecheck + test + build
+# Serve locally (then open http://localhost:8123), or just open play.html via file://
 python3 -m http.server 8123
 ```
 
+Test runner: `node:test` + `node:assert` (stdlib only). `npm test` needs no
+`npm install` and no build; it imports `src/engine.ts` directly (Node strips
+TS types natively, requires Node ≥22.18/23.6). No vitest/jest — a prototype
+this small should not acquire a heavy test toolchain for pure-logic coverage.
+Scope: `src/engine.ts` pure logic only (`test/engine.test.js`). Do NOT attempt
+DOM coverage of `src/play.ts` here — it has no DOM test harness.
+
+Red-green loop (follow without being asked):
+1. RED: write/adjust the test first to assert the intended behavior, run
+   `npm test`, and observe it fail. Paste the failure on the bead.
+2. GREEN: make the minimal implementation (or test-correctness) change to
+   pass. `npm test` must be green before closing the bead.
+3. Quality gate: `npm run verify` (typecheck + test + build) runs from a clean
+   checkout with a single command after install; run it as part of session
+   close whenever `src/`, `test/`, `play.html`, or `index.html` changed — and
+   commit the rebuilt `dist/` if it moved.
+
 Debug helpers: `?debug=1` verbose event overlay, `?world=gen&seed=N` seeded
 worlds, `?rule=` / `?fail=` to force collision/failure rules, `?variant=<id>`
-to start a named variant (see `variants.js` and `variants/README.md`).
+to start a named variant (see `src/variants.ts` and `variants/README.md`).
 
 ## Architecture Overview
 
-Static browser prototype deployed to GitHub Pages (no toolchain).
+Static browser prototype deployed to GitHub Pages. Sources are TypeScript ES
+modules in `src/`, bundled to committed IIFE files in `dist/` by esbuild
+(see Build & Test for why the bundle is committed).
 
-- `index.html` + `gallery.js` — front-page catalogue of variants, rendered
-  from the registry; deep links with `?world`/`?rule`/`?fail`/`?variant`
-  redirect to `play.html`
-- `play.html` — the game page (formerly index.html)
-- `variants.js` — variant registry: named (collision × failure × world)
+- `index.html` + `src/gallery.ts` (→ `dist/gallery.js`) — front-page
+  catalogue of variants, rendered from the registry; deep links with
+  `?world`/`?rule`/`?fail`/`?variant` redirect to `play.html`
+- `play.html` + `src/play.ts` (→ `dist/play.js`) — the game page
+  (formerly index.html)
+- `src/variants.ts` — variant registry: named (collision × failure × world)
   combinations with a hypothesis each; single source of truth for the gallery
   and the game's `?variant=` param
 - `variants/` — per-variant lab notebook: rules in full, hypothesis,
   feedback log, branching/extension musings
-- `engine.js` — pure logic: `RULES` (collision rules:
+- `src/engine.ts` — pure logic: `RULES` (collision rules:
   `superpose(currentNumber, tile, ctx) → result`) and `FAILURE_RULES`
   (`failed(event) → reason or null`); appends event history per move
-- `world.js` — hand-authored `WORLDS` (5×5 grids) and `generateWorld(seed)`
-- `main.js` — wiring, rendering, animation, input; `style.css` — looks
+- `src/world.ts` — hand-authored `WORLDS` (5×5 grids) and `generateWorld(seed)`
+- `style.css` — looks
 
 ## Conventions & Patterns
 
@@ -142,10 +182,10 @@ Static browser prototype deployed to GitHub Pages (no toolchain).
   primitives — everything must be expressible in Number, Up, position, and
   superposition (see README "Do not add")
 - Collision and failure rules are isolated bindings in registries
-  (`engine.js` → `RULES`, `FAILURE_RULES`) so interpretations swap without
-  restructuring; named pairings live in `variants.js` → `VARIANTS` and are
+  (`src/engine.ts` → `RULES`, `FAILURE_RULES`) so interpretations swap without
+  restructuring; named pairings live in `src/variants.ts` → `VARIANTS` and are
   selected via `?variant=`; raw `?rule=` / `?fail=` still work for custom
   pairings
-- New variants: add a registry entry in `variants.js` + a notebook file in
+- New variants: add a registry entry in `src/variants.ts` + a notebook file in
   `variants/<id>.md`; the gallery renders automatically
 - Design intent and open questions live in `_the_beginning.md`

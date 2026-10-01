@@ -3,7 +3,7 @@
 **replace × none** — try on any identity, answer to none
 
 Play: <https://maphew.github.io/number-up/play.html?variant=masquerade>
-Registry: `variants.js` → `VARIANTS.masquerade` (collision `replace`, failure `none`, world full)
+Registry: `src/variants.ts` → `VARIANTS.masquerade` (collision `replace`, failure `none`, world full)
 
 ## Hypothesis
 
