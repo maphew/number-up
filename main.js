@@ -3,17 +3,19 @@
 
   const { WORLDS, WORLD_ORDER, findStart, generateWorld } = globalThis.NumberUpWorlds;
   const Engine = globalThis.NumberUpEngine;
+  const Variants = globalThis.NumberUpVariants || null;
 
   const params = new URLSearchParams(location.search);
   const pick = (key, pool, fallback) => (pool[key] ? key : fallback);
   const IS_TOUCH = window.matchMedia('(pointer: coarse)').matches;
 
   const rawWorld = params.get('world');
+  const rawVariant = Variants && params.get('variant') ? Variants.getVariant(params.get('variant')) : null;
   const state = {
-    worldKey: pick(rawWorld, WORLDS, rawWorld === 'gen' ? 'gen' : 'full'),
+    worldKey: pick(rawWorld, WORLDS, rawWorld === 'gen' ? 'gen' : (rawVariant && rawVariant.world) || 'full'),
     genSeed: null,
-    ruleKey: pick(params.get('rule'), Engine.RULES, 'eval'),
-    failKey: pick(params.get('fail'), Engine.FAILURE_RULES, 'notUp'),
+    ruleKey: rawVariant ? rawVariant.rule : pick(params.get('rule'), Engine.RULES, 'eval'),
+    failKey: rawVariant ? rawVariant.fail : pick(params.get('fail'), Engine.FAILURE_RULES, 'notUp'),
     debug: params.get('debug') === '1',
     number: 0,
     pos: { x: 2, y: 2 },
@@ -29,6 +31,7 @@
   const CELL = 100;
   const els = {
     number: document.getElementById('number'),
+    variantLabel: document.getElementById('variant-label'),
     position: document.getElementById('position'),
     ruleLabel: document.getElementById('rule-label'),
     failLabel: document.getElementById('fail-label'),
@@ -46,6 +49,10 @@
 
   function world() {
     return state.worldKey === 'gen' ? generateWorld(state.genSeed) : WORLDS[state.worldKey];
+  }
+
+  function currentVariant() {
+    return Variants ? Variants.variantFor(state.ruleKey, state.failKey) : null;
   }
 
   function tileAt(x, y) {
@@ -206,14 +213,20 @@
   function renderStatus() {
     els.number.textContent = fmtNumber(state.number);
     els.position.textContent = `${state.pos.x},${state.pos.y}`;
+    if (els.variantLabel) {
+      const v = currentVariant();
+      els.variantLabel.textContent = v ? v.name : 'custom';
+    }
     els.ruleLabel.textContent = `${state.ruleKey} (${state.engine.rule.name})`;
     els.failLabel.textContent = `${state.failKey} (${state.engine.failure.name})`;
     els.worldLabel.textContent = `${state.worldKey} — ${world().name}`;
   }
 
   function feedbackHref() {
+    const v = currentVariant();
     const lines = [
       `World: ${state.worldKey} — ${world().name}`,
+      `Variant: ${v ? `${v.name} (${v.id})` : `custom — ${state.ruleKey} × ${state.failKey}`}`,
       `Collision rule: ${state.ruleKey} (${state.engine.rule.name})`,
       `Failure rule: ${state.failKey} (${state.engine.failure.name})`,
       `Number: ${fmtNumber(state.number)} after ${state.engine.turn} move${state.engine.turn === 1 ? '' : 's'}`,
@@ -299,7 +312,9 @@
     buildGrid();
     syncUrl();
     render();
-    els.observation.textContent = message || `World ${state.worldKey} — ${world().name}. Number = 0.${IS_TOUCH ? ' Swipe the grid to move.' : ''}`;
+    const v = currentVariant();
+    const variantNote = v ? ` Variant ${v.name} — ${v.tagline}.` : '';
+    els.observation.textContent = message || `World ${state.worldKey} — ${world().name}.${variantNote} Number = 0.${IS_TOUCH ? ' Swipe the grid to move.' : ''}`;
     if (state.debug) renderHistory();
   }
 
@@ -309,6 +324,11 @@
       p.set('world', state.worldKey);
       if (state.worldKey === 'gen') p.set('seed', String(state.genSeed));
       else p.delete('seed');
+      const v = currentVariant();
+      if (v) p.set('variant', v.id);
+      else p.delete('variant');
+      p.set('rule', state.ruleKey);
+      p.set('fail', state.failKey);
       history.replaceState(null, '', `${location.pathname}?${p}`);
     } catch (err) {
       /* non-serve contexts (sandboxed iframes) may block URL writes */
@@ -378,6 +398,8 @@
     if (k === 'r' || e.key === 'Enter') {
       e.preventDefault();
       restart();
+    } else if (e.key === 'Escape') {
+      location.href = 'index.html';
     } else if (k === '/') {
       e.preventDefault();
       toggleDebug();
@@ -398,6 +420,7 @@
     const action = btn.dataset.action;
     if (action === 'restart') restart();
     else if (action === 'debug') toggleDebug();
+    else if (action === 'catalogue') location.href = 'index.html';
     else if (action === 'world') nextWorld();
     else if (action === 'worldgen') nextGenerated();
     else if (action === 'rule') nextRule();
@@ -439,5 +462,5 @@
 
   applyEngine();
   if (state.debug) document.body.classList.add('debug');
-  restart(`World ${state.worldKey} — ${world().name}. Collision rule ${state.ruleKey}. Number = 0.`);
+  restart();
 })();

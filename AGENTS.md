@@ -114,12 +114,22 @@ python3 -m http.server 8123
 ```
 
 Debug helpers: `?debug=1` verbose event overlay, `?world=gen&seed=N` seeded
-worlds, `?rule=` / `?fail=` to force collision/failure rules.
+worlds, `?rule=` / `?fail=` to force collision/failure rules, `?variant=<id>`
+to start a named variant (see `variants.js` and `variants/README.md`).
 
 ## Architecture Overview
 
 Static browser prototype deployed to GitHub Pages (no toolchain).
 
+- `index.html` + `gallery.js` — front-page catalogue of variants, rendered
+  from the registry; deep links with `?world`/`?rule`/`?fail`/`?variant`
+  redirect to `play.html`
+- `play.html` — the game page (formerly index.html)
+- `variants.js` — variant registry: named (collision × failure × world)
+  combinations with a hypothesis each; single source of truth for the gallery
+  and the game's `?variant=` param
+- `variants/` — per-variant lab notebook: rules in full, hypothesis,
+  feedback log, branching/extension musings
 - `engine.js` — pure logic: `RULES` (collision rules:
   `superpose(currentNumber, tile, ctx) → result`) and `FAILURE_RULES`
   (`failed(event) → reason or null`); appends event history per move
@@ -133,5 +143,9 @@ Static browser prototype deployed to GitHub Pages (no toolchain).
   superposition (see README "Do not add")
 - Collision and failure rules are isolated bindings in registries
   (`engine.js` → `RULES`, `FAILURE_RULES`) so interpretations swap without
-  restructuring; select via `?rule=` / `?fail=` query params
+  restructuring; named pairings live in `variants.js` → `VARIANTS` and are
+  selected via `?variant=`; raw `?rule=` / `?fail=` still work for custom
+  pairings
+- New variants: add a registry entry in `variants.js` + a notebook file in
+  `variants/<id>.md`; the gallery renders automatically
 - Design intent and open questions live in `_the_beginning.md`

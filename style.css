@@ -44,6 +44,8 @@ body {
 
 .stats {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 18px;
 }
 
@@ -271,4 +273,118 @@ body.debug .debug-only {
 
 body.debug .stats .debug-only {
   display: flex;
+}
+
+#variant-label {
+  font-size: 14px;
+  color: var(--dot);
+}
+
+/* --- catalogue (index.html) --- */
+
+#gallery-head {
+  width: min(720px, 94vw);
+  padding: 28px 0 10px;
+}
+
+#gallery-head h1 {
+  margin: 0 0 12px;
+  font-size: 20px;
+  letter-spacing: 0.35em;
+  font-weight: 700;
+}
+
+.intro {
+  color: var(--dim);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.intro a {
+  color: inherit;
+}
+
+#gallery {
+  width: min(720px, 94vw);
+  display: grid;
+  gap: 10px;
+  padding: 10px 0 8px;
+  align-content: start;
+}
+
+.group-label {
+  color: var(--dim);
+  font-size: 11px;
+  letter-spacing: 0.2em;
+  font-weight: 400;
+  margin: 12px 0 2px;
+}
+
+.card {
+  display: block;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.card:hover,
+.card:focus-visible {
+  border-color: var(--dim);
+}
+
+.card h2 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  letter-spacing: 0.25em;
+}
+
+.card .tagline {
+  color: var(--dot);
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
+.card .meta {
+  color: var(--dim);
+  font-size: 11px;
+  margin: 0 0 8px;
+}
+
+.card .hypothesis {
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+
+.card .play {
+  color: var(--up);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  margin: 0;
+}
+
+#gallery-foot {
+  width: min(720px, 94vw);
+  color: var(--dim);
+  font-size: 11px;
+  line-height: 1.6;
+  padding: 8px 0 calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+#gallery-foot p {
+  margin: 4px 0;
+}
+
+#gallery-foot a {
+  color: inherit;
+}
+
+#gallery-foot kbd {
+  font: inherit;
+  font-weight: 700;
+  color: var(--ink);
 }
