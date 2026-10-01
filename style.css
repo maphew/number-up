@@ -275,9 +275,23 @@ body.debug .stats .debug-only {
   display: flex;
 }
 
-#variant-label {
-  font-size: 14px;
-  color: var(--dot);
+#title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+#variant-sub {
+  margin: 0;
+  color: var(--dim);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  line-height: 1.5;
+}
+
+#variant-sub a {
+  color: inherit;
 }
 
 /* --- catalogue (index.html) --- */

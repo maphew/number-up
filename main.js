@@ -31,7 +31,7 @@
   const CELL = 100;
   const els = {
     number: document.getElementById('number'),
-    variantLabel: document.getElementById('variant-label'),
+    variantSub: document.getElementById('variant-sub-text'),
     position: document.getElementById('position'),
     ruleLabel: document.getElementById('rule-label'),
     failLabel: document.getElementById('fail-label'),
@@ -213,9 +213,10 @@
   function renderStatus() {
     els.number.textContent = fmtNumber(state.number);
     els.position.textContent = `${state.pos.x},${state.pos.y}`;
-    if (els.variantLabel) {
+    if (els.variantSub) {
       const v = currentVariant();
-      els.variantLabel.textContent = v ? v.name : 'custom';
+      els.variantSub.textContent = v ? `${v.name} — ${v.tagline}` : `custom — ${state.ruleKey} × ${state.failKey}`;
+      document.title = v ? `NUMBER UP — ${v.name}` : 'NUMBER UP — custom';
     }
     els.ruleLabel.textContent = `${state.ruleKey} (${state.engine.rule.name})`;
     els.failLabel.textContent = `${state.failKey} (${state.engine.failure.name})`;
@@ -313,7 +314,7 @@
     syncUrl();
     render();
     const v = currentVariant();
-    const variantNote = v ? ` Variant ${v.name} — ${v.tagline}.` : '';
+    const variantNote = v ? ` Variant ${v.name}.` : '';
     els.observation.textContent = message || `World ${state.worldKey} — ${world().name}.${variantNote} Number = 0.${IS_TOUCH ? ' Swipe the grid to move.' : ''}`;
     if (state.debug) renderHistory();
   }

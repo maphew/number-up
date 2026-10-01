@@ -8,15 +8,14 @@
 </head>
 <body>
 <header id="status">
-  <h1>NUMBER UP</h1>
+  <div id="title-block">
+    <h1>NUMBER UP</h1>
+    <p id="variant-sub"><span id="variant-sub-text">—</span> · <a href="index.html">home</a></p>
+  </div>
   <div class="stats">
     <div class="stat">
       <span class="label">NUMBER</span>
       <span id="number" class="value">0</span>
-    </div>
-    <div class="stat">
-      <span class="label">VARIANT</span>
-      <span id="variant-label" class="value">—</span>
     </div>
     <div class="stat debug-only">
       <span class="label">POSITION</span>
@@ -53,7 +52,7 @@
     <button type="button" data-action="rule" aria-label="Cycle rule"><kbd>C</kbd> rule</button>
     <button type="button" data-action="fail" aria-label="Cycle fail rule"><kbd>F</kbd> fail-rule</button>
     <button type="button" data-action="feedback" aria-label="Email feedback"><kbd>@</kbd> feedback</button>
-    <button type="button" data-action="catalogue" aria-label="Back to variant catalogue"><kbd>Esc</kbd> catalogue</button>
+    <button type="button" data-action="catalogue" aria-label="Back to the catalogue"><kbd>Esc</kbd> home</button>
   </div>
   <div id="feedback">Playing this? Tell me what it felt like — <a id="feedback-mail" href="mailto:maphew+number-up@gmail.com?subject=NUMBER%20UP%20feedback">email maphew+number-up@gmail.com</a> (your run state gets attached).</div>
 </section>
