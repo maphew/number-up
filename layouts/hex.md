@@ -64,6 +64,11 @@ fixed.
   counts depend on the counter). Square default + gallery untouched confirmed
   (no `layout` references in gallery/index; `IS_HEX` false by default).
   `npm run verify` green (tsc strict + 51 tests + esbuild), `dist/` current.
+- 2026-10-02 — Listed on the home page under "lab bench: layout experiments"
+  (num-fmd): the variant-catalogue gallery could never render hex since it is
+  a layout modifier, not a rule×fail variant, and matt could not find it
+  without the README. Square stays the default; the card links
+  `?layout=hex&variant=verbs` and points here.
 - Still open — the actual question needs human play: whether the wider search
   READS as more legible or as overwhelming, and whether QEZC diagonals +
   nearest-of-six swipe feel honest in the hand. Watch for: on square a row of

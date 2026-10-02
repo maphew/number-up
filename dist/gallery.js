@@ -94,7 +94,7 @@
     node.textContent = text;
   }
   var params = new URLSearchParams(location.search);
-  var gameParams = ["world", "seed", "rule", "fail", "variant", "debug"];
+  var gameParams = ["world", "seed", "rule", "fail", "variant", "layout", "debug"];
   if (gameParams.some((k) => params.has(k))) {
     location.replace(`play.html${location.search}`);
   } else {
@@ -134,6 +134,40 @@
       h.textContent = group.label;
       root.appendChild(h);
       for (const id of ids) root.appendChild(card2({ id, ...VARIANTS[id] }));
+    }
+    const LAYOUT_EXPERIMENTS = [
+      {
+        name: "Hex lattice",
+        tagline: "six neighbours, three ways onward",
+        how: "Same variants, same worlds \u2014 the board just becomes hexes, so every tile has six neighbours and every row of signs has three exits.",
+        meta: "layout experiment (?layout=hex) \xB7 square stays the default \xB7 updated 2026-10-01 \xB7 notebook: layouts/hex.md",
+        hypothesis: "You will plan further ahead when each tile offers three ways onward instead of two, and the six-key mapping (Q E Z C take the diagonals; swipes snap to the nearest of six) will feel honest rather than approximate. If the wider search reads as overwhelming or the keys fight your hand, the square grid keeps the board.",
+        href: "play.html?layout=hex&variant=verbs"
+      }
+    ];
+    if (LAYOUT_EXPERIMENTS.length) {
+      const h = document.createElement("h2");
+      h.className = "group-label";
+      h.textContent = "lab bench: layout experiments \u2014 the board, not the rules";
+      root.appendChild(h);
+      for (const e of LAYOUT_EXPERIMENTS) {
+        const a = document.createElement("a");
+        a.className = "card";
+        a.href = e.href;
+        a.innerHTML = `
+        <h2></h2>
+        <p class="tagline"></p>
+        <p class="how"></p>
+        <p class="meta"></p>
+        <p class="hypothesis"></p>
+        <p class="play">play \u2192</p>`;
+        setText(a, "h2", `\u2B21 ${e.name}`);
+        setText(a, ".tagline", e.tagline);
+        setText(a, ".how", e.how);
+        setText(a, ".meta", e.meta);
+        setText(a, ".hypothesis", e.hypothesis);
+        root.appendChild(a);
+      }
     }
   }
   var card;
