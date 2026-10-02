@@ -27,6 +27,8 @@ Same collision rule as Becoming:
 
 ## Feedback
 
+- 2026-10-02 — No mechanics change (collapse experiment ships as opt-in
+  `fallout`). Updated date unchanged.
 - (nothing yet)
 
 ## Musings: branches and extensions

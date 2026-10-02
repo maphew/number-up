@@ -1,8 +1,9 @@
 import { createEngine, FAILURE_RULES, isOperator, RULES, type FailureName, type MoveEvent, type RuleName } from './engine.ts';
-import { findStart, generateWorld, WORLDS, WORLD_ORDER, type World, type WorldKey } from './world.ts';
+import { createCollapseState, findStart, generateWorld, WORLDS, WORLD_ORDER, type World, type WorldKey } from './world.ts';
 import { getVariant, variantFor } from './variants.ts';
 import { createHexLattice, createSquareLattice, type Lattice, type Pos } from './lattice.ts';
 import { formatMoveLog, formatRunDump, summariseRun, type RunContext } from './debug.ts';
+import { APP_VERSION } from './version.ts';
 
 type PlayWorld = WorldKey | 'gen';
 
@@ -31,8 +32,11 @@ const IS_HEX = params.get('layout') === 'hex';
 const variantParam = params.get('variant');
 const rawWorld = params.get('world');
 const rawVariant = variantParam ? getVariant(variantParam) : null;
+const rawCollapse = params.get('collapse');
 const ruleKey: RuleName = rawVariant ? rawVariant.rule : pickKey(params.get('rule'), RULES, 'eval');
 const failKey: FailureName = rawVariant ? rawVariant.fail : pickKey(params.get('fail'), FAILURE_RULES, 'notUp');
+const collapseDefault = rawVariant ? (rawVariant.collapse ?? false) : rawCollapse === '1';
+let collapseOn = collapseDefault && rawCollapse !== '0';
 
 function resolveWorldKey(raw: string | null, variantWorld: WorldKey | undefined): PlayWorld {
   if (raw === 'gen') return 'gen';
@@ -50,6 +54,7 @@ const state: {
   pos: Pos;
   over: boolean;
   engine: ReturnType<typeof createEngine>;
+  spent: ReturnType<typeof createCollapseState>;
 } = {
   worldKey: resolveWorldKey(rawWorld, rawVariant?.world),
   genSeed: null,
@@ -60,6 +65,7 @@ const state: {
   pos: { x: 2, y: 2 },
   over: false,
   engine: createEngine(ruleKey, failKey),
+  spent: createCollapseState(),
 };
 
 if (state.worldKey === 'gen') {
@@ -98,6 +104,9 @@ const els = {
 };
 const svg = mustEl('grid');
 const copyBtn = document.getElementById('note-copy');
+const issueBtn = document.getElementById('note-issue');
+const copyRunBtn = document.getElementById('copy-run');
+const openIssueBtn = document.getElementById('open-issue');
 const historyPre = mustEl('history');
 let fromLog: (Pos | null)[] = [];
 
@@ -116,14 +125,14 @@ function world(): World {
 }
 
 function currentVariant() {
-  return variantFor(state.ruleKey, state.failKey);
+  return variantFor(state.ruleKey, state.failKey, collapseOn);
 }
 
 function tileAt(x: number, y: number): string {
   const row = world().rows[y];
   const tile = row?.[x];
   if (tile === undefined) throw new Error(`no tile at ${x},${y}`);
-  return tile;
+  return collapseOn ? state.spent.tile(tile, x, y) : tile;
 }
 
 function ns<K extends keyof SVGElementTagNameMap>(
@@ -169,6 +178,8 @@ function buildGrid() {
     }
   }
 
+  paintCollapsedTiles(rows);
+
   for (let y = 0; y < rows.length; y++) {
     const row = rows[y];
     if (row === undefined) continue;
@@ -199,13 +210,45 @@ function buildGrid() {
   svg.appendChild(playerNode);
 }
 
+function paintCollapsedTiles(rows: World['rows']) {
+  if (!collapseOn) return;
+  for (let y = 0; y < rows.length; y++) {
+    const nodes = tileNodes[y];
+    if (nodes === undefined) continue;
+    for (let x = 0; x < (rows[y]?.length ?? 0); x++) {
+      if (!state.spent.has(x, y)) continue;
+      const text = nodes[x];
+      if (text) {
+        text.textContent = '';
+        text.classList.add('spent');
+      }
+    }
+  }
+}
+
+function collapseTileNode(x: number, y: number) {
+  const row = tileNodes[y];
+  const node = row?.[x] ?? null;
+  if (node) {
+    node.textContent = '';
+    node.classList.add('spent');
+  }
+}
+
 function placePlayer() {
   const { cx, cy } = cellCenter(state.pos.x, state.pos.y);
   playerNode.style.transform = `translate(${cx}px, ${cy}px)`;
 }
 
 function fmtNumber(n: number): string {
-  return Number.isFinite(n) ? String(n) : 'INVALID';
+  if (!Number.isFinite(n)) return '✕';
+  const s = String(n);
+  return s.length > 6 ? n.toExponential(2) : s;
+}
+
+function renderPnum() {
+  playerNumberNode.textContent = fmtNumber(state.number);
+  playerNumberNode.classList.toggle('long', playerNumberNode.textContent.length > 4);
 }
 
 function statusClass(ev: MoveEvent): string {
@@ -230,11 +273,12 @@ function deltaGlyph(ev: MoveEvent): string {
 }
 
 function animateSuperpose(ev: MoveEvent, from: Pos, to: Pos) {
-  const dest = tileNodes[from.y]?.[from.x] ?? null;
+  const dest = tileNodes[to.y]?.[to.x] ?? null;
   const { cx: fx, cy: fy } = cellCenter(from.x, from.y);
   const { cx: tx, cy: ty } = cellCenter(to.x, to.y);
 
-  if (dest) {
+  if (collapseOn) collapseTileNode(to.x, to.y);
+  if (dest && dest.textContent !== '') {
     const fly = ns('text', { x: 0, y: 0, class: 'fly', transform: `translate(${fx}px, ${fy}px)` });
     fly.textContent = ev.destinationTile;
     fxLayer.appendChild(fly);
@@ -249,6 +293,7 @@ function animateSuperpose(ev: MoveEvent, from: Pos, to: Pos) {
   }
 
   playerNumberNode.textContent = fmtNumber(state.number);
+  playerNumberNode.classList.toggle('long', (playerNumberNode.textContent ?? '').length > 4);
   playerNumberNode.classList.remove('pop');
   void playerNumberNode.getBoundingClientRect();
   playerNumberNode.classList.add('pop');
@@ -304,7 +349,9 @@ function verboseObservation(move: MoveEvent): DocumentFragment {
 function quietObservation(move: MoveEvent): DocumentFragment {
   const frag = document.createDocumentFragment();
   const glyph = move.valid ? (move.wentUp ? '↑' : move.delta < 0 ? '↓' : '—') : '✕';
-  frag.appendChild(line(move.valid ? statusClass(move) : 'down', `${glyph} ${fmtNumber(state.number)}`));
+  const pending = state.engine.pending;
+  const held = pending === null ? '' : ` [${pending}]`;
+  frag.appendChild(line(move.valid ? statusClass(move) : 'down', `${glyph} ${fmtNumber(state.number)}${held}`));
   return frag;
 }
 
@@ -321,7 +368,8 @@ function showObservation(move: MoveEvent, extra?: DocumentFragment | null) {
 function showRunOver(ev: MoveEvent): DocumentFragment {
   const frag = document.createDocumentFragment();
   frag.appendChild(line('over', `RUN OVER — ${ev.failReason}.`));
-  frag.appendChild(line('', `Survived ${ev.turn} move${ev.turn === 1 ? '' : 's'}, final Number ${fmtNumber(state.number)}.`));
+  const survived = Math.max(0, ev.turn - 1);
+  frag.appendChild(line('', `Died on move ${ev.turn}, survived ${survived} move${survived === 1 ? '' : 's'}, final Number ${fmtNumber(state.number)}.`));
   frag.appendChild(line('', IS_TOUCH ? 'Tap the grid (or R) to restart.' : 'Press R to restart.'));
   return frag;
 }
@@ -336,7 +384,20 @@ function renderStatus() {
   }
   els.ruleLabel.textContent = `${state.ruleKey} (${state.engine.rule.name})`;
   els.failLabel.textContent = `${state.failKey} (${state.engine.failure.name})`;
-  els.worldLabel.textContent = `${state.worldKey} — ${world().name}`;
+  els.worldLabel.textContent = `${state.worldKey} — ${world().name}${collapseOn ? ' +collapse' : ''}`;
+  const issueUrl = issueHref();
+  const issueLink = document.getElementById('feedback-issue');
+  if (issueLink instanceof HTMLAnchorElement) issueLink.href = issueUrl;
+}
+
+function issueHref(): string {
+  const dump = formatRunDump(runContext(), state.engine.history, fromLog);
+  const body = `${dump}\n\nWhat happened / what should have happened:\n`;
+  return `https://github.com/maphew/number-up/issues/new?${new URLSearchParams({ title: 'NUMBER UP feedback', body })}`;
+}
+
+function openIssue() {
+  window.open(issueHref(), '_blank', 'noopener');
 }
 
 function feedbackHref(): string {
@@ -371,10 +432,12 @@ function renderHistory() {
 
 function variantLabel(): string {
   const v = currentVariant();
-  return v ? `${v.name} (${v.id})` : `custom — ${state.ruleKey} × ${state.failKey}`;
+  if (v) return `${v.name} (${v.id})`;
+  return collapseOn ? `custom — ${state.ruleKey} × ${state.failKey} + collapse` : `custom — ${state.ruleKey} × ${state.failKey}`;
 }
 
 function runContext(): RunContext {
+  const v = currentVariant();
   return {
     ruleKey: state.ruleKey,
     ruleName: state.engine.rule.name,
@@ -386,6 +449,10 @@ function runContext(): RunContext {
     seed: state.genSeed,
     url: location.search || location.pathname,
     number: state.number,
+    variantUpdated: v?.updated,
+    variantHypothesis: v?.hypothesis,
+    pending: state.engine.pending,
+    appVersion: APP_VERSION,
   };
 }
 
@@ -396,8 +463,9 @@ function renderNotebook() {
     const ctx = runContext();
     const v = currentVariant();
     els.noteMeta.textContent = [
-      `Variant: ${ctx.variantLabel}`,
-      `Rule ${ctx.ruleKey} · fail ${ctx.failKey} · world ${ctx.worldKey}${ctx.seed === null ? '' : ` seed ${ctx.seed}`}`,
+      `NUMBER UP v${APP_VERSION}`,
+      `Variant: ${ctx.variantLabel}${v?.updated !== undefined ? ` (updated ${v.updated})` : ''}`,
+      `Rule ${ctx.ruleKey} · fail ${ctx.failKey} · world ${ctx.worldKey}${ctx.seed === null ? '' : ` seed ${ctx.seed}`}${collapseOn ? ' · collapse-to-floor' : ''}`,
       IS_HEX
         ? 'Layout hex (pointy-top odd-r, 6 neighbours) — ←→/AD = W E · Q/E = NW/NE · Z/C = SW/SE · numpad 7/9/1/3 diagonals · swipe snaps to nearest of 6 (straight up/down → NE/SE)'
         : 'Layout square (4 neighbours) — arrows / WASD / numpad · swipe dominant axis',
@@ -450,7 +518,7 @@ function fallbackCopy(text: string, done: (ok: boolean) => void) {
 
 function render() {
   placePlayer();
-  playerNumberNode.textContent = fmtNumber(state.number);
+  renderPnum();
   playerNode.classList.toggle('dead', state.over);
   renderStatus();
   if (els.feedbackLink) els.feedbackLink.href = feedbackHref();
@@ -480,6 +548,10 @@ function tryMove(name: string) {
   const ev = state.engine.attempt(state.number, name.toUpperCase(), tileAt(next.x, next.y));
   state.number = ev.valid ? ev.result : NaN;
   state.pos = next;
+  if (collapseOn) {
+    state.spent.add(state.pos.x, state.pos.y);
+    collapseTileNode(state.pos.x, state.pos.y);
+  }
 
   render();
   animateSuperpose(ev, from, state.pos);
@@ -501,6 +573,7 @@ function restart(message?: string) {
   state.pos = findStart(world());
   state.over = false;
   fromLog = [];
+  state.spent.clear();
   buildGrid();
   syncUrl();
   render();
@@ -521,6 +594,8 @@ function syncUrl() {
     else p.delete('variant');
     p.set('rule', state.ruleKey);
     p.set('fail', state.failKey);
+    if (collapseOn !== (v?.collapse ?? false)) p.set('collapse', collapseOn ? '1' : '0');
+    else p.delete('collapse');
     if (IS_HEX) p.set('layout', 'hex');
     else p.delete('layout');
     if (state.debug) p.set('debug', '1');
@@ -550,13 +625,20 @@ function nextGenerated() {
 }
 
 function nextRule() {
+  if (!IS_HEX && !confirmWipe('rule')) return;
   state.ruleKey = cycle(['replace', 'add', 'eval'], state.ruleKey);
   restart(`Collision rule → ${state.ruleKey} (${state.engine.rule.name}). Number = 0.`);
 }
 
 function nextFailure() {
+  if (!IS_HEX && !confirmWipe('fail')) return;
   state.failKey = cycle(['notUp', 'none'], state.failKey);
   restart(`Failure rule → ${state.failKey} (${state.engine.failure.name}). Number = 0.`);
+}
+
+function toggleCollapse() {
+  collapseOn = !collapseOn;
+  restart(`Collapse-to-floor ${collapseOn ? 'ON — tiles burn out behind you' : 'OFF'}. Number = 0.`);
 }
 
 function applyEngine() {
@@ -567,12 +649,20 @@ const MOVE_KEYS: Record<string, string> = IS_HEX
   ? {
       ArrowLeft: 'W',
       ArrowRight: 'E',
+      A: 'W',
+      D: 'E',
       a: 'W',
       d: 'E',
+      Q: 'NW',
+      E: 'NE',
       q: 'NW',
       e: 'NE',
+      Z: 'SW',
+      C: 'SE',
       z: 'SW',
       c: 'SE',
+      W: 'W',
+      S: 'S',
       Numpad4: 'W',
       Numpad6: 'E',
       Numpad7: 'NW',
@@ -585,6 +675,10 @@ const MOVE_KEYS: Record<string, string> = IS_HEX
       ArrowDown: 'down',
       ArrowLeft: 'left',
       ArrowRight: 'right',
+      W: 'up',
+      S: 'down',
+      A: 'left',
+      D: 'right',
       w: 'up',
       s: 'down',
       a: 'left',
@@ -594,6 +688,12 @@ const MOVE_KEYS: Record<string, string> = IS_HEX
       Numpad4: 'left',
       Numpad6: 'right',
     };
+
+function confirmWipe(action: 'rule' | 'fail'): boolean {
+  if (state.engine.turn === 0) return true;
+  const label = action === 'rule' ? 'collision rule' : 'failure rule';
+  return window.confirm(`Switch ${label}? This restarts the run (${state.engine.turn} moves in).`);
+}
 
 const HEX_NO_NS_KEYS = new Set(['ArrowUp', 'ArrowDown', 'w', 's', 'W', 'S', 'Numpad8', 'Numpad2', '8', '2']);
 
@@ -621,7 +721,8 @@ function toggleDebug() {
 
 document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
-  const move = MOVE_KEYS[e.key] || MOVE_KEYS[e.code];
+  const direct = MOVE_KEYS[e.key];
+  const move = direct ?? MOVE_KEYS[e.key.toLowerCase()] ?? MOVE_KEYS[e.code];
   if (move) {
     e.preventDefault();
     tryMove(move);
@@ -644,6 +745,8 @@ document.addEventListener('keydown', (e) => {
     nextRule();
   } else if (k === 'f') {
     nextFailure();
+  } else if (k === 'x') {
+    toggleCollapse();
   } else if (IS_HEX && HEX_NO_NS_KEYS.has(e.key)) {
     e.preventDefault();
     showHexNoNorthSouth();
@@ -663,6 +766,7 @@ document.getElementById('help')?.addEventListener('click', (e) => {
   else if (action === 'worldgen') nextGenerated();
   else if (action === 'rule') nextRule();
   else if (action === 'fail') nextFailure();
+  else if (action === 'collapse') toggleCollapse();
   else if (action === 'feedback') openFeedback();
 });
 
@@ -704,6 +808,18 @@ svg.addEventListener('touchcancel', () => {
 
 if (copyBtn instanceof HTMLButtonElement) {
   copyBtn.addEventListener('click', copyRunDump);
+}
+
+if (issueBtn instanceof HTMLButtonElement) {
+  issueBtn.addEventListener('click', openIssue);
+}
+
+if (copyRunBtn instanceof HTMLButtonElement) {
+  copyRunBtn.addEventListener('click', copyRunDump);
+}
+
+if (openIssueBtn instanceof HTMLButtonElement) {
+  openIssueBtn.addEventListener('click', openIssue);
 }
 
 if (IS_HEX) {

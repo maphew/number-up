@@ -33,6 +33,11 @@ game together and the lab should look elsewhere for the core interaction.
   UP (`n + k > n` for `k > 0`); death is a `0` or a sign (flat). Gallery
   `how` already matches the code. Not reconciled.
 
+## Changelog
+
+- 2026-10-02 — No mechanics change (collapse experiment ships as opt-in
+  `fallout`, not a flip of this variant). Updated date unchanged.
+
 ## Musings: branches and extensions
 
 - Death by `0` tile makes zero interesting: it's a wall you can never afford to

@@ -64,6 +64,33 @@ export type WorldKey = keyof typeof WORLDS;
 
 export const WORLD_ORDER: WorldKey[] = ['full', 'a', 'b', 'c', 'd'];
 
+export const COLLAPSED_TILE = 'floor';
+
+export interface CollapseState {
+  has(x: number, y: number): boolean;
+  tile(raw: string, x: number, y: number): string;
+  add(x: number, y: number): void;
+  clear(): void;
+}
+
+export function createCollapseState(): CollapseState {
+  const spent = new Set<string>();
+  return {
+    has(x, y) {
+      return spent.has(`${x},${y}`);
+    },
+    tile(raw, x, y) {
+      return spent.has(`${x},${y}`) ? COLLAPSED_TILE : raw;
+    },
+    add(x, y) {
+      spent.add(`${x},${y}`);
+    },
+    clear() {
+      spent.clear();
+    },
+  };
+}
+
 function mulberry32(seed: number): () => number {
   let a = seed | 0;
   return function () {

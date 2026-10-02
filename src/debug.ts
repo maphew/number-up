@@ -21,6 +21,10 @@ export interface RunContext {
   seed: number | null;
   url: string;
   number: number;
+  variantUpdated?: string;
+  variantHypothesis?: string;
+  pending?: number | null;
+  appVersion?: string;
 }
 
 function fmtNum(n: number): string {
@@ -85,7 +89,10 @@ export function formatRunDump(ctx: RunContext, history: MoveEvent[], from?: (Log
   const totals = summariseRun(history);
   const lines = [
     'NUMBER UP — run dump',
+    ...(ctx.appVersion !== undefined ? [`Version: ${ctx.appVersion}`] : []),
     `Variant: ${ctx.variantLabel}`,
+    ...(ctx.variantUpdated !== undefined ? [`Experiment updated: ${ctx.variantUpdated}`] : []),
+    ...(ctx.variantHypothesis !== undefined ? [`Hypothesis: ${ctx.variantHypothesis}`] : []),
     `World: ${ctx.worldKey} — ${ctx.worldName}`,
     `Collision rule: ${ctx.ruleKey} (${ctx.ruleName})`,
     `Failure rule: ${ctx.failKey} (${ctx.failName})`,

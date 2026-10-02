@@ -138,6 +138,14 @@ body {
   transform-origin: center;
 }
 
+#player .pnum.long {
+  font-size: calc(var(--u) * 0.16);
+}
+
+.tile.spent {
+  fill: none;
+}
+
 #player .pnum.pop {
   animation: pop 260ms ease-out;
 }
@@ -242,12 +250,26 @@ body {
 
 #note-actions {
   margin: 6px 0 2px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-#note-copy {
+#actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+#note-copy,
+#note-issue,
+#copy-run,
+#open-issue {
   font: inherit;
   font-size: 11px;
-  padding: 6px 10px;
+  min-height: 44px;
+  padding: 6px 12px;
   color: var(--ink);
   background: var(--panel);
   border: 1px solid var(--line);
@@ -280,7 +302,8 @@ body {
 
 #help button {
   font: inherit;
-  padding: 6px 10px;
+  min-height: 44px;
+  padding: 6px 12px;
   color: var(--dim);
   background: var(--panel);
   border: 1px solid var(--line);

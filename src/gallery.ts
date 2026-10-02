@@ -1,4 +1,5 @@
 import { VARIANTS, VARIANT_ORDER, type ResolvedVariant } from './variants.ts';
+import { APP_VERSION } from './version.ts';
 
 function mustEl(id: string): HTMLElement {
   const el = document.getElementById(id);
@@ -20,6 +21,8 @@ if (gameParams.some((k) => params.has(k))) {
   location.replace(`play.html${location.search}`);
 } else {
   const root = mustEl('gallery');
+  const versionEl = document.getElementById('app-version');
+  if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
 
   const GROUPS = [
     { label: 'with stakes: one non-up move ends the run', fail: 'notUp' },
@@ -33,15 +36,16 @@ if (gameParams.some((k) => params.has(k))) {
     a.className = 'card';
     a.href = `play.html?${q}`;
     a.innerHTML = `
-      <h2>${v.name}</h2>
+      <h2></h2>
       <p class="tagline"></p>
       <p class="how"></p>
       <p class="meta"></p>
       <p class="hypothesis"></p>
       <p class="play">play →</p>`;
+    setText(a, 'h2', `${v.name}${v.collapse ? ' ⚛' : ''}`);
     setText(a, '.tagline', v.tagline);
     setText(a, '.how', v.how);
-    setText(a, '.meta', `collision: ${v.rule} · failure: ${v.fail} · opens in world ${v.world || 'full'}`);
+    setText(a, '.meta', `collision: ${v.rule} · failure: ${v.fail} · opens in world ${v.world || 'full'}${v.collapse ? ' · collapse-to-floor' : ''} · updated ${v.updated}`);
     setText(a, '.hypothesis', v.hypothesis);
     return a;
   }

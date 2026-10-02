@@ -33,7 +33,13 @@ World b is operator-dense so verbs dominate the texture of play.
 
 ## Feedback
 
-- (nothing yet)
+- 2026-10-02 — External alpha review (GH issue 1, R1): pending operand is
+  invisible in normal play (`↑ 18` with no trace of the held `6`), so no
+  theory of Verbs can form. Fixed: quiet line now reads `↑ 18 [6]`, held
+  operand always observable; design tension (pending as carried state vs
+  Number/Up/position/superposition) stays open — if it cannot be observed it
+  cannot be learned. See `num-wkq.2`.
+- (nothing else yet)
 
 ## Musings: branches and extensions
 

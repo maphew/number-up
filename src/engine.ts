@@ -4,6 +4,7 @@ export type TileKind = 'op' | 'num' | 'floor';
 
 export interface MoveContext {
   pending: number | null;
+  noOperand?: string;
 }
 
 export interface CollisionRule {
@@ -32,6 +33,7 @@ export interface InvalidAttempt extends AttemptBase {
   result: null;
   delta: null;
   wentUp: false;
+  noOperand?: string;
 }
 
 export type AttemptOutcome = ValidAttempt | InvalidAttempt;
@@ -63,7 +65,9 @@ export function classify(tile: string): TileKind {
   return Number.isFinite(n) ? 'num' : 'floor';
 }
 
-function round(x: number): number {
+function round(x: number): number | null {
+  if (!Number.isFinite(x)) return null;
+  if (Number.isInteger(x) && Math.abs(x) <= Number.MAX_SAFE_INTEGER) return x;
   return Math.round(x * 1e6) / 1e6;
 }
 
@@ -95,11 +99,15 @@ export const RULES = {
         ctx.pending = Number(tile);
         return Number(tile);
       }
-      if (!isOperator(tile) || ctx.pending === null) return NaN;
+      if (!isOperator(tile)) return NaN;
+      if (ctx.pending === null) {
+        ctx.noOperand = tile;
+        return NaN;
+      }
       return OPS[tile](currentNumber, ctx.pending);
     },
   },
-} satisfies Record<string, CollisionRule>;
+  } satisfies Record<string, CollisionRule>;
 
 export type RuleName = keyof typeof RULES;
 
@@ -113,7 +121,10 @@ export const FAILURE_RULES = {
   notUp: {
     name: 'NUMBER NOT UP',
     failed(ev) {
-      if (!ev.valid) return 'Number became invalid — UP is undefined here';
+      if (!ev.valid) {
+        if (ev.noOperand !== undefined) return `${ev.noOperand} had nothing to act on`;
+        return 'Number became invalid — UP is undefined here';
+      }
       if (ev.result < ev.oldNumber) return 'Number went DOWN';
       if (ev.result === ev.oldNumber) return 'Number did not go UP';
       return null;
@@ -189,6 +200,7 @@ export function createEngine(ruleName: string, failureName: string): Engine {
         result = NaN;
       }
       pending = ctx.pending;
+      const noOperand = ctx.noOperand;
       const valid = typeof result === 'number' && Number.isFinite(result);
       const base = {
         turn: ++turn,
@@ -197,13 +209,16 @@ export function createEngine(ruleName: string, failureName: string): Engine {
         destinationTile: tile,
         rule: rule.name,
         pendingAtEntry: pendingBefore,
+        noOperand,
       };
+      const rounded = valid ? round(result) : null;
+      const delta = valid ? round(result - currentNumber) : null;
       const ev: AttemptOutcome = valid
         ? {
             ...base,
             valid: true,
-            result: round(result),
-            delta: round(result - currentNumber),
+            result: rounded ?? result,
+            delta: delta ?? result - currentNumber,
             wentUp: result > currentNumber,
           }
         : { ...base, valid: false, result: null, delta: null, wentUp: false };

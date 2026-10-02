@@ -22,19 +22,20 @@ keep the fuller design register.
 
 ### with stakes: one non-up move ends the run
 
-| name | id | collision | failure | opens in | notebook |
-|------|----|-----------|---------|----------|----------|
-| Verbs | `verbs` | `eval` | `notUp` | world b | [verbs.md](verbs.md) |
-| Accretion | `accretion` | `add` | `notUp` | world a | [accretion.md](accretion.md) |
-| Becoming | `becoming` | `replace` | `notUp` | world c | [becoming.md](becoming.md) |
+| name | id | collision | failure | opens in | updated | notebook |
+|------|----|-----------|---------|----------|---------|----------|
+| Verbs | `verbs` | `eval` | `notUp` | world b | 2026-09-30 | [verbs.md](verbs.md) |
+| Accretion | `accretion` | `add` | `notUp` | world a | 2026-09-30 | [accretion.md](accretion.md) |
+| Becoming | `becoming` | `replace` | `notUp` | world c | 2026-09-30 | [becoming.md](becoming.md) |
+| Fallout | `fallout` | `eval` | `notUp` | world `full` | 2026-10-02 | [fallout.md](fallout.md) |
 
 ### open field: nothing can hurt you
 
-| name | id | collision | failure | opens in | notebook |
-|------|----|-----------|---------|----------|----------|
-| Rehearsal | `rehearsal` | `eval` | `none` | world b | [rehearsal.md](rehearsal.md) |
-| Hoarder | `hoarder` | `add` | `none` | world `full` | [hoarder.md](hoarder.md) |
-| Masquerade | `masquerade` | `replace` | `none` | world `full` | [masquerade.md](masquerade.md) |
+| name | id | collision | failure | opens in | updated | notebook |
+|------|----|-----------|---------|----------|---------|----------|
+| Rehearsal | `rehearsal` | `eval` | `none` | world b | 2026-09-30 | [rehearsal.md](rehearsal.md) |
+| Hoarder | `hoarder` | `add` | `none` | world `full` | 2026-09-30 | [hoarder.md](hoarder.md) |
+| Masquerade | `masquerade` | `replace` | `none` | world `full` | 2026-09-30 | [masquerade.md](masquerade.md) |
 
 Any rule/fail pairing not in the registry shows as **custom** in the game's
 VARIANT readout; it can still be reached with `?rule=` / `?fail=`.

@@ -105,6 +105,7 @@ describe('formatRunDump', () => {
         seed: null,
         url: '?variant=verbs',
         number: 27,
+        variantUpdated: '2026-09-30',
       },
       verbsRun(),
     );
@@ -113,5 +114,26 @@ describe('formatRunDump', () => {
     assert.match(dump, /Verbs \(verbs\)/);
     assert.match(dump, /Turns 4/);
     assert.match(dump, /→ 18/);
+  });
+
+  it('names the operator with nothing to act on in the log line', () => {
+    const engine = createEngine('eval', 'notUp');
+    engine.attempt(5, 'UP', '×');
+    const dump = formatRunDump(
+      {
+        ruleKey: 'eval',
+        ruleName: 'operator evaluation',
+        failKey: 'notUp',
+        failName: 'NUMBER NOT UP',
+        worldKey: 'full',
+        worldName: 'Full — mixed grid',
+        variantLabel: 'custom — eval × notUp',
+        seed: null,
+        url: '?rule=eval&fail=notUp',
+        number: NaN,
+      },
+      engine.history,
+    );
+    assert.match(dump, /had nothing to act on/);
   });
 });

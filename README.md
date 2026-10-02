@@ -30,6 +30,7 @@ branching musings) live in `variants/`.
 | Verbs | `eval` | `notUp` | operators are verbs, numbers are fuel |
 | Accretion | `add` | `notUp` | everything sticks; only growth keeps you alive |
 | Becoming | `replace` | `notUp` | you become what you touch; smaller ends the run |
+| Fallout | `eval` + collapse | `notUp` | every tile burns out behind you; routing is the game |
 | Rehearsal | `eval` | `none` | the verb grammar, stakes removed |
 | Hoarder | `add` | `none` | accumulation as a fidget toy |
 | Masquerade | `replace` | `none` | identity swap with nothing to lose |
@@ -52,14 +53,18 @@ Any other rule/fail pairing plays as **custom** (shown in the header).
   so the exact map can be shared)
 - `C`: cycle collision rule
 - `F`: cycle failure rule
+- `X`: toggle collapse-to-floor (tiles burn out behind you; opt-in)
 - `@` chip or the feedback line: send feedback with your current run state
   attached → maphew+number-up@gmail.com (full move log with pending operand,
   not just the last ten moves)
-- Shortcut chips below the map (`R / N G C F / @`) are clickable and perform
+- Shortcut chips below the map (`R / N G C F X / @`) are clickable and perform
   each shortcut with mouse or touch
-- URL params: `?variant=verbs|accretion|becoming|rehearsal|hoarder|masquerade`
+- URL params: `?variant=verbs|accretion|becoming|fallout|rehearsal|hoarder|masquerade`
   (sets rule, failure, and starting world; takes precedence) or the lower-level
   `?world=full|a|b|c|d|gen&seed=N&rule=replace|add|eval&fail=notUp|none&debug=1`
+- URL param `?collapse=1` (or `X` key / collapse chip): tiles collapse to floor
+  after collision — opt-in experiment, default off; the `fallout` variant sets
+  it on. Replay-safe: `?collapse=0` forces it off.
 - URL param `?layout=hex`: play the same worlds on a hexagonal lattice instead
   of the square grid (experiment; square stays the default and the gallery
   default). The board becomes pointy-top hexes in offset rows (odd-r) — every
@@ -81,10 +86,12 @@ Any other rule/fail pairing plays as **custom** (shown in the header).
 
 ## Where things live
 
-- **Variant registry**: `variants.js` → `VARIANTS`. Named rule × failure ×
+- **Variant registry**: `src/variants.ts` → `VARIANTS`. Named rule × failure ×
   world combinations with a one-line hypothesis each. Both the front-page
   gallery (`index.html` + `gallery.js`) and the game (`play.html`) read it.
-  Per-variant notebooks live in `variants/<id>.md`.
+  Per-variant notebooks live in `variants/<id>.md`. Registry carries
+  `updated` (meaningful-change date, shown on cards and in the notebook) and
+  optional `collapse` (collapse-to-floor on).
 - **Collision rule**: `engine.js` → `RULES`. Each rule is
   `superpose(currentNumber, destinationTile, ctx) → result`. Shipped candidates:
   `replace` (Number becomes the tile), `add` (Number plus tile), `eval`

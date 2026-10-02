@@ -9,7 +9,8 @@
       rule: "eval",
       fail: "notUp",
       world: "b",
-      hypothesis: "You will read the signs as moves to make, not obstacles to hit, holding a number and then running a row of signs on purpose. If you avoid the signs instead, the verb reading is ours, not yours."
+      hypothesis: "You will read the signs as moves to make, not obstacles to hit, holding a number and then running a row of signs on purpose. If you avoid the signs instead, the verb reading is ours, not yours.",
+      updated: "2026-09-30"
     },
     accretion: {
       name: "Accretion",
@@ -18,7 +19,8 @@
       rule: "add",
       fail: "notUp",
       world: "a",
-      hypothesis: "You can keep this going by picking a path where every tile grows you. If it turns into bookkeeping once your number passes 40, plain addition is not enough on its own."
+      hypothesis: "You can keep this going by picking a path where every tile grows you. If it turns into bookkeeping once your number passes 40, plain addition is not enough on its own.",
+      updated: "2026-09-30"
     },
     becoming: {
       name: "Becoming",
@@ -27,7 +29,8 @@
       rule: "replace",
       fail: "notUp",
       world: "c",
-      hypothesis: "You will feel every move as a commitment, because your number is rented, never owned. If you reduce it to chasing the biggest neighbour, the tightrope is just a greed walk."
+      hypothesis: "You will feel every move as a commitment, because your number is rented, never owned. If you reduce it to chasing the biggest neighbour, the tightrope is just a greed walk.",
+      updated: "2026-09-30"
     },
     rehearsal: {
       name: "Rehearsal",
@@ -36,7 +39,8 @@
       rule: "eval",
       fail: "none",
       world: "b",
-      hypothesis: "With nothing to lose, you decide what the game is. If you keep hunting bigger numbers anyway, curiosity was never about the stakes. If you drift and stop, failure was doing the work all along."
+      hypothesis: "With nothing to lose, you decide what the game is. If you keep hunting bigger numbers anyway, curiosity was never about the stakes. If you drift and stop, failure was doing the work all along.",
+      updated: "2026-09-30"
     },
     hoarder: {
       name: "Hoarder",
@@ -45,7 +49,8 @@
       rule: "add",
       fail: "none",
       world: "full",
-      hypothesis: "You keep choosing paths even with no threat, or you drift once dying is impossible. Either way you tell us whether growing for its own sake is enough to keep you moving."
+      hypothesis: "You keep choosing paths even with no threat, or you drift once dying is impossible. Either way you tell us whether growing for its own sake is enough to keep you moving.",
+      updated: "2026-09-30"
     },
     masquerade: {
       name: "Masquerade",
@@ -54,13 +59,28 @@
       rule: "replace",
       fail: "none",
       world: "full",
-      hypothesis: "Once survival is off the table, you make up your own goals, and that is the evidence that the premise generates play by itself. If you just wander, becoming needs stakes to matter."
+      hypothesis: "Once survival is off the table, you make up your own goals, and that is the evidence that the premise generates play by itself. If you just wander, becoming needs stakes to matter.",
+      updated: "2026-09-30"
+    },
+    fallout: {
+      name: "Fallout",
+      tagline: "every tile burns out behind you; routing is the game",
+      how: "Walk like Verbs, but every tile you touch collapses to floor and re-entry ends the run. Plan a route that never revisits.",
+      rule: "eval",
+      fail: "notUp",
+      world: "full",
+      hypothesis: "With re-entry fatal, you will plan routes instead of mashing loops. If world full becomes a 5-move puzzle with a best Number near 243, finiteness reads as routing, not as shortness.",
+      updated: "2026-10-02",
+      collapse: true
     }
   };
   function isVariantId(id) {
     return Object.prototype.hasOwnProperty.call(VARIANTS, id);
   }
   var VARIANT_ORDER = Object.keys(VARIANTS).filter(isVariantId);
+
+  // src/version.ts
+  var APP_VERSION = "0.1.0";
 
   // src/gallery.ts
   function mustEl(id) {
@@ -85,20 +105,23 @@
       a.className = "card";
       a.href = `play.html?${q}`;
       a.innerHTML = `
-      <h2>${v.name}</h2>
+      <h2></h2>
       <p class="tagline"></p>
       <p class="how"></p>
       <p class="meta"></p>
       <p class="hypothesis"></p>
       <p class="play">play \u2192</p>`;
+      setText(a, "h2", `${v.name}${v.collapse ? " \u269B" : ""}`);
       setText(a, ".tagline", v.tagline);
       setText(a, ".how", v.how);
-      setText(a, ".meta", `collision: ${v.rule} \xB7 failure: ${v.fail} \xB7 opens in world ${v.world || "full"}`);
+      setText(a, ".meta", `collision: ${v.rule} \xB7 failure: ${v.fail} \xB7 opens in world ${v.world || "full"}${v.collapse ? " \xB7 collapse-to-floor" : ""} \xB7 updated ${v.updated}`);
       setText(a, ".hypothesis", v.hypothesis);
       return a;
     };
     card = card2;
     const root = mustEl("gallery");
+    const versionEl = document.getElementById("app-version");
+    if (versionEl) versionEl.textContent = `v${APP_VERSION}`;
     const GROUPS = [
       { label: "with stakes: one non-up move ends the run", fail: "notUp" },
       { label: "open field: nothing can hurt you", fail: "none" }

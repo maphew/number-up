@@ -58,9 +58,7 @@ describe('notUp failure rule boundaries (check order: invalid, DOWN, flat)', () 
     // result null < oldNumber 5 is true, so DOWN would win if order were swapped.
     const reason = notUp.failed({ valid: false, result: null, oldNumber: 5 });
     assert.match(reason, /invalid/i);
-  });
-
-  it('DOWN is reported when the Number decreases', () => {
+  });  it('DOWN is reported when the Number decreases', () => {
     assert.match(notUp.failed({ valid: true, result: 3, oldNumber: 5 }), /DOWN/);
   });
 
@@ -89,7 +87,7 @@ describe('notUp failure rule boundaries (check order: invalid, DOWN, flat)', () 
     const engine3 = createEngine('eval', 'notUp');
     const invalid = engine3.attempt(5, 'up', '+');
     assert.equal(invalid.failed, true);
-    assert.match(invalid.failReason, /invalid/);
+    assert.match(invalid.failReason, /had nothing to act on/);
 
     const engine4 = createEngine('eval', 'notUp');
     engine4.attempt(1, 'up', '6');
@@ -138,5 +136,50 @@ describe('createEngine wiring', () => {
     assert.equal(engine.pending, null);
     engine.attempt(1, 'up', '6');
     assert.equal(engine.pending, 6);
+  });
+});
+
+describe('operator-with-no-operand names its death (num-wkq.3)', () => {
+  it('an operator with no pending operand says what had nothing to act on', () => {
+    const engine = createEngine('eval', 'notUp');
+    const ev = engine.attempt(5, 'up', '×');
+    assert.equal(ev.valid, false);
+    assert.equal(ev.failed, true);
+    assert.match(ev.failReason, /× had nothing to act on/);
+  });
+
+  it('÷ by zero keeps the generic invalid message (operand present, result undefined)', () => {
+    const engine = createEngine('eval', 'notUp');
+    engine.attempt(1, 'up', '0'); // pending = 0
+    const ev = engine.attempt(0, 'up', '÷');
+    assert.equal(ev.valid, false);
+    assert.equal(ev.failed, true);
+    assert.match(ev.failReason, /invalid/i);
+    assert.doesNotMatch(ev.failReason, /nothing to act on/);
+  });
+});
+
+describe('round() never corrupts the carried Number (num-wkq.5)', () => {
+  it('keeps large integers exact (37238650778412 + 6)', () => {
+    const engine = createEngine('add', 'none');
+    const ev = engine.attempt(37238650778412, 'up', '6');
+    assert.equal(ev.result, 37238650778418);
+  });
+
+  it('still rounds float hygiene to 6dp (1 ÷ 3)', () => {
+    const engine = createEngine('eval', 'none');
+    engine.attempt(0, 'up', '3'); // pending = 3
+    const ev = engine.attempt(1, 'up', '÷');
+    assert.equal(ev.result, 0.333333);
+  });
+
+  it('collapse re-entry reads as flat: floor leaves Number unchanged, fails notUp', () => {
+    const engine = createEngine('eval', 'notUp');
+    engine.attempt(1, 'up', '6');
+    const ev = engine.attempt(6, 'up', 'floor');
+    assert.equal(ev.valid, true);
+    assert.equal(ev.result, 6);
+    assert.equal(ev.failed, true);
+    assert.match(ev.failReason, /not go UP/);
   });
 });

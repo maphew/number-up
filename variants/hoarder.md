@@ -29,7 +29,11 @@ tiles, useful as rest stops and route decor.
 
 ## Feedback
 
-- (nothing yet)
+- 2026-10-02 — Collapse interaction checked, not shipped: under
+  collapse-to-floor this becomes a finite consume-everything puzzle, arguably
+  truer to the hypothesis. Left as-is; try it via `?collapse=1` before
+  promoting. See `fallout.md` / `num-wkq.1`.
+- (nothing else yet)
 
 ## Musings: branches and extensions
 

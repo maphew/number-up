@@ -16,6 +16,8 @@
     return Number.isFinite(n) ? "num" : "floor";
   }
   function round(x) {
+    if (!Number.isFinite(x)) return null;
+    if (Number.isInteger(x) && Math.abs(x) <= Number.MAX_SAFE_INTEGER) return x;
     return Math.round(x * 1e6) / 1e6;
   }
   var RULES = {
@@ -46,7 +48,11 @@
           ctx.pending = Number(tile);
           return Number(tile);
         }
-        if (!isOperator(tile) || ctx.pending === null) return NaN;
+        if (!isOperator(tile)) return NaN;
+        if (ctx.pending === null) {
+          ctx.noOperand = tile;
+          return NaN;
+        }
         return OPS[tile](currentNumber, ctx.pending);
       }
     }
@@ -61,7 +67,10 @@
     notUp: {
       name: "NUMBER NOT UP",
       failed(ev) {
-        if (!ev.valid) return "Number became invalid \u2014 UP is undefined here";
+        if (!ev.valid) {
+          if (ev.noOperand !== void 0) return `${ev.noOperand} had nothing to act on`;
+          return "Number became invalid \u2014 UP is undefined here";
+        }
         if (ev.result < ev.oldNumber) return "Number went DOWN";
         if (ev.result === ev.oldNumber) return "Number did not go UP";
         return null;
@@ -116,6 +125,7 @@
           result = NaN;
         }
         pending = ctx.pending;
+        const noOperand = ctx.noOperand;
         const valid = typeof result === "number" && Number.isFinite(result);
         const base = {
           turn: ++turn,
@@ -123,13 +133,16 @@
           oldNumber: currentNumber,
           destinationTile: tile,
           rule: rule.name,
-          pendingAtEntry: pendingBefore
+          pendingAtEntry: pendingBefore,
+          noOperand
         };
+        const rounded = valid ? round(result) : null;
+        const delta = valid ? round(result - currentNumber) : null;
         const ev = valid ? {
           ...base,
           valid: true,
-          result: round(result),
-          delta: round(result - currentNumber),
+          result: rounded ?? result,
+          delta: delta ?? result - currentNumber,
           wentUp: result > currentNumber
         } : { ...base, valid: false, result: null, delta: null, wentUp: false };
         const failReason = failure.failed(ev);
@@ -195,6 +208,24 @@
     }
   };
   var WORLD_ORDER = ["full", "a", "b", "c", "d"];
+  var COLLAPSED_TILE = "floor";
+  function createCollapseState() {
+    const spent = /* @__PURE__ */ new Set();
+    return {
+      has(x, y) {
+        return spent.has(`${x},${y}`);
+      },
+      tile(raw, x, y) {
+        return spent.has(`${x},${y}`) ? COLLAPSED_TILE : raw;
+      },
+      add(x, y) {
+        spent.add(`${x},${y}`);
+      },
+      clear() {
+        spent.clear();
+      }
+    };
+  }
   function mulberry32(seed) {
     let a = seed | 0;
     return function() {
@@ -242,7 +273,8 @@
       rule: "eval",
       fail: "notUp",
       world: "b",
-      hypothesis: "You will read the signs as moves to make, not obstacles to hit, holding a number and then running a row of signs on purpose. If you avoid the signs instead, the verb reading is ours, not yours."
+      hypothesis: "You will read the signs as moves to make, not obstacles to hit, holding a number and then running a row of signs on purpose. If you avoid the signs instead, the verb reading is ours, not yours.",
+      updated: "2026-09-30"
     },
     accretion: {
       name: "Accretion",
@@ -251,7 +283,8 @@
       rule: "add",
       fail: "notUp",
       world: "a",
-      hypothesis: "You can keep this going by picking a path where every tile grows you. If it turns into bookkeeping once your number passes 40, plain addition is not enough on its own."
+      hypothesis: "You can keep this going by picking a path where every tile grows you. If it turns into bookkeeping once your number passes 40, plain addition is not enough on its own.",
+      updated: "2026-09-30"
     },
     becoming: {
       name: "Becoming",
@@ -260,7 +293,8 @@
       rule: "replace",
       fail: "notUp",
       world: "c",
-      hypothesis: "You will feel every move as a commitment, because your number is rented, never owned. If you reduce it to chasing the biggest neighbour, the tightrope is just a greed walk."
+      hypothesis: "You will feel every move as a commitment, because your number is rented, never owned. If you reduce it to chasing the biggest neighbour, the tightrope is just a greed walk.",
+      updated: "2026-09-30"
     },
     rehearsal: {
       name: "Rehearsal",
@@ -269,7 +303,8 @@
       rule: "eval",
       fail: "none",
       world: "b",
-      hypothesis: "With nothing to lose, you decide what the game is. If you keep hunting bigger numbers anyway, curiosity was never about the stakes. If you drift and stop, failure was doing the work all along."
+      hypothesis: "With nothing to lose, you decide what the game is. If you keep hunting bigger numbers anyway, curiosity was never about the stakes. If you drift and stop, failure was doing the work all along.",
+      updated: "2026-09-30"
     },
     hoarder: {
       name: "Hoarder",
@@ -278,7 +313,8 @@
       rule: "add",
       fail: "none",
       world: "full",
-      hypothesis: "You keep choosing paths even with no threat, or you drift once dying is impossible. Either way you tell us whether growing for its own sake is enough to keep you moving."
+      hypothesis: "You keep choosing paths even with no threat, or you drift once dying is impossible. Either way you tell us whether growing for its own sake is enough to keep you moving.",
+      updated: "2026-09-30"
     },
     masquerade: {
       name: "Masquerade",
@@ -287,7 +323,19 @@
       rule: "replace",
       fail: "none",
       world: "full",
-      hypothesis: "Once survival is off the table, you make up your own goals, and that is the evidence that the premise generates play by itself. If you just wander, becoming needs stakes to matter."
+      hypothesis: "Once survival is off the table, you make up your own goals, and that is the evidence that the premise generates play by itself. If you just wander, becoming needs stakes to matter.",
+      updated: "2026-09-30"
+    },
+    fallout: {
+      name: "Fallout",
+      tagline: "every tile burns out behind you; routing is the game",
+      how: "Walk like Verbs, but every tile you touch collapses to floor and re-entry ends the run. Plan a route that never revisits.",
+      rule: "eval",
+      fail: "notUp",
+      world: "full",
+      hypothesis: "With re-entry fatal, you will plan routes instead of mashing loops. If world full becomes a 5-move puzzle with a best Number near 243, finiteness reads as routing, not as shortness.",
+      updated: "2026-10-02",
+      collapse: true
     }
   };
   function isVariantId(id) {
@@ -298,10 +346,11 @@
     if (!isVariantId(id)) return null;
     return { id, ...VARIANTS[id] };
   }
-  function variantFor(ruleKey2, failKey2) {
+  function variantFor(ruleKey2, failKey2, collapse = false) {
     for (const id of VARIANT_ORDER) {
       const v = VARIANTS[id];
-      if (v.rule === ruleKey2 && v.fail === failKey2) return { id, ...v };
+      if (v.rule === ruleKey2 && v.fail === failKey2 && (v.collapse ?? false) === collapse)
+        return { id, ...v };
     }
     return null;
   }
@@ -464,7 +513,10 @@
     const totals = summariseRun(history2);
     const lines = [
       "NUMBER UP \u2014 run dump",
+      ...ctx.appVersion !== void 0 ? [`Version: ${ctx.appVersion}`] : [],
       `Variant: ${ctx.variantLabel}`,
+      ...ctx.variantUpdated !== void 0 ? [`Experiment updated: ${ctx.variantUpdated}`] : [],
+      ...ctx.variantHypothesis !== void 0 ? [`Hypothesis: ${ctx.variantHypothesis}`] : [],
       `World: ${ctx.worldKey} \u2014 ${ctx.worldName}`,
       `Collision rule: ${ctx.ruleKey} (${ctx.ruleName})`,
       `Failure rule: ${ctx.failKey} (${ctx.failName})`,
@@ -478,6 +530,9 @@
     ];
     return lines.join("\n");
   }
+
+  // src/version.ts
+  var APP_VERSION = "0.1.0";
 
   // src/play.ts
   function mustEl(id) {
@@ -500,8 +555,11 @@
   var variantParam = params.get("variant");
   var rawWorld = params.get("world");
   var rawVariant = variantParam ? getVariant(variantParam) : null;
+  var rawCollapse = params.get("collapse");
   var ruleKey = rawVariant ? rawVariant.rule : pickKey(params.get("rule"), RULES, "eval");
   var failKey = rawVariant ? rawVariant.fail : pickKey(params.get("fail"), FAILURE_RULES, "notUp");
+  var collapseDefault = rawVariant ? rawVariant.collapse ?? false : rawCollapse === "1";
+  var collapseOn = collapseDefault && rawCollapse !== "0";
   function resolveWorldKey(raw, variantWorld) {
     if (raw === "gen") return "gen";
     if (raw !== null && isWorldKey(raw)) return raw;
@@ -516,7 +574,8 @@
     number: 0,
     pos: { x: 2, y: 2 },
     over: false,
-    engine: createEngine(ruleKey, failKey)
+    engine: createEngine(ruleKey, failKey),
+    spent: createCollapseState()
   };
   if (state.worldKey === "gen") {
     const s = parseInt(params.get("seed") ?? "", 10);
@@ -549,6 +608,9 @@
   };
   var svg = mustEl("grid");
   var copyBtn = document.getElementById("note-copy");
+  var issueBtn = document.getElementById("note-issue");
+  var copyRunBtn = document.getElementById("copy-run");
+  var openIssueBtn = document.getElementById("open-issue");
   var historyPre = mustEl("history");
   var fromLog = [];
   var tileNodes = [];
@@ -564,13 +626,13 @@
     return WORLDS[state.worldKey];
   }
   function currentVariant() {
-    return variantFor(state.ruleKey, state.failKey);
+    return variantFor(state.ruleKey, state.failKey, collapseOn);
   }
   function tileAt(x, y) {
     const row = world().rows[y];
     const tile = row?.[x];
     if (tile === void 0) throw new Error(`no tile at ${x},${y}`);
-    return tile;
+    return collapseOn ? state.spent.tile(tile, x, y) : tile;
   }
   function ns(tag, attrs) {
     const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
@@ -608,6 +670,7 @@
         }
       }
     }
+    paintCollapsedTiles(rows);
     for (let y = 0; y < rows.length; y++) {
       const row = rows[y];
       if (row === void 0) continue;
@@ -635,12 +698,41 @@
     playerNode.appendChild(playerNumberNode);
     svg.appendChild(playerNode);
   }
+  function paintCollapsedTiles(rows) {
+    if (!collapseOn) return;
+    for (let y = 0; y < rows.length; y++) {
+      const nodes = tileNodes[y];
+      if (nodes === void 0) continue;
+      for (let x = 0; x < (rows[y]?.length ?? 0); x++) {
+        if (!state.spent.has(x, y)) continue;
+        const text = nodes[x];
+        if (text) {
+          text.textContent = "";
+          text.classList.add("spent");
+        }
+      }
+    }
+  }
+  function collapseTileNode(x, y) {
+    const row = tileNodes[y];
+    const node = row?.[x] ?? null;
+    if (node) {
+      node.textContent = "";
+      node.classList.add("spent");
+    }
+  }
   function placePlayer() {
     const { cx, cy } = cellCenter(state.pos.x, state.pos.y);
     playerNode.style.transform = `translate(${cx}px, ${cy}px)`;
   }
   function fmtNumber(n) {
-    return Number.isFinite(n) ? String(n) : "INVALID";
+    if (!Number.isFinite(n)) return "\u2715";
+    const s = String(n);
+    return s.length > 6 ? n.toExponential(2) : s;
+  }
+  function renderPnum() {
+    playerNumberNode.textContent = fmtNumber(state.number);
+    playerNumberNode.classList.toggle("long", playerNumberNode.textContent.length > 4);
   }
   function statusClass(ev) {
     if (!ev.valid) return "down";
@@ -661,10 +753,11 @@
     return "\u2014 \xB10";
   }
   function animateSuperpose(ev, from, to) {
-    const dest = tileNodes[from.y]?.[from.x] ?? null;
+    const dest = tileNodes[to.y]?.[to.x] ?? null;
     const { cx: fx, cy: fy } = cellCenter(from.x, from.y);
     const { cx: tx, cy: ty } = cellCenter(to.x, to.y);
-    if (dest) {
+    if (collapseOn) collapseTileNode(to.x, to.y);
+    if (dest && dest.textContent !== "") {
       const fly = ns("text", { x: 0, y: 0, class: "fly", transform: `translate(${fx}px, ${fy}px)` });
       fly.textContent = ev.destinationTile;
       fxLayer.appendChild(fly);
@@ -678,6 +771,7 @@
       setTimeout(() => fly.remove(), 500);
     }
     playerNumberNode.textContent = fmtNumber(state.number);
+    playerNumberNode.classList.toggle("long", (playerNumberNode.textContent ?? "").length > 4);
     playerNumberNode.classList.remove("pop");
     void playerNumberNode.getBoundingClientRect();
     playerNumberNode.classList.add("pop");
@@ -726,7 +820,9 @@
   function quietObservation(move) {
     const frag = document.createDocumentFragment();
     const glyph = move.valid ? move.wentUp ? "\u2191" : move.delta < 0 ? "\u2193" : "\u2014" : "\u2715";
-    frag.appendChild(line(move.valid ? statusClass(move) : "down", `${glyph} ${fmtNumber(state.number)}`));
+    const pending = state.engine.pending;
+    const held = pending === null ? "" : ` [${pending}]`;
+    frag.appendChild(line(move.valid ? statusClass(move) : "down", `${glyph} ${fmtNumber(state.number)}${held}`));
     return frag;
   }
   function showObservation(move, extra) {
@@ -741,7 +837,8 @@
   function showRunOver(ev) {
     const frag = document.createDocumentFragment();
     frag.appendChild(line("over", `RUN OVER \u2014 ${ev.failReason}.`));
-    frag.appendChild(line("", `Survived ${ev.turn} move${ev.turn === 1 ? "" : "s"}, final Number ${fmtNumber(state.number)}.`));
+    const survived = Math.max(0, ev.turn - 1);
+    frag.appendChild(line("", `Died on move ${ev.turn}, survived ${survived} move${survived === 1 ? "" : "s"}, final Number ${fmtNumber(state.number)}.`));
     frag.appendChild(line("", IS_TOUCH ? "Tap the grid (or R) to restart." : "Press R to restart."));
     return frag;
   }
@@ -755,7 +852,21 @@
     }
     els.ruleLabel.textContent = `${state.ruleKey} (${state.engine.rule.name})`;
     els.failLabel.textContent = `${state.failKey} (${state.engine.failure.name})`;
-    els.worldLabel.textContent = `${state.worldKey} \u2014 ${world().name}`;
+    els.worldLabel.textContent = `${state.worldKey} \u2014 ${world().name}${collapseOn ? " +collapse" : ""}`;
+    const issueUrl = issueHref();
+    const issueLink = document.getElementById("feedback-issue");
+    if (issueLink instanceof HTMLAnchorElement) issueLink.href = issueUrl;
+  }
+  function issueHref() {
+    const dump = formatRunDump(runContext(), state.engine.history, fromLog);
+    const body = `${dump}
+
+What happened / what should have happened:
+`;
+    return `https://github.com/maphew/number-up/issues/new?${new URLSearchParams({ title: "NUMBER UP feedback", body })}`;
+  }
+  function openIssue() {
+    window.open(issueHref(), "_blank", "noopener");
   }
   function feedbackHref() {
     const lines = [
@@ -784,9 +895,11 @@
   }
   function variantLabel() {
     const v = currentVariant();
-    return v ? `${v.name} (${v.id})` : `custom \u2014 ${state.ruleKey} \xD7 ${state.failKey}`;
+    if (v) return `${v.name} (${v.id})`;
+    return collapseOn ? `custom \u2014 ${state.ruleKey} \xD7 ${state.failKey} + collapse` : `custom \u2014 ${state.ruleKey} \xD7 ${state.failKey}`;
   }
   function runContext() {
+    const v = currentVariant();
     return {
       ruleKey: state.ruleKey,
       ruleName: state.engine.rule.name,
@@ -797,7 +910,11 @@
       variantLabel: variantLabel(),
       seed: state.genSeed,
       url: location.search || location.pathname,
-      number: state.number
+      number: state.number,
+      variantUpdated: v?.updated,
+      variantHypothesis: v?.hypothesis,
+      pending: state.engine.pending,
+      appVersion: APP_VERSION
     };
   }
   function renderNotebook() {
@@ -807,8 +924,9 @@
       const ctx = runContext();
       const v = currentVariant();
       els.noteMeta.textContent = [
-        `Variant: ${ctx.variantLabel}`,
-        `Rule ${ctx.ruleKey} \xB7 fail ${ctx.failKey} \xB7 world ${ctx.worldKey}${ctx.seed === null ? "" : ` seed ${ctx.seed}`}`,
+        `NUMBER UP v${APP_VERSION}`,
+        `Variant: ${ctx.variantLabel}${v?.updated !== void 0 ? ` (updated ${v.updated})` : ""}`,
+        `Rule ${ctx.ruleKey} \xB7 fail ${ctx.failKey} \xB7 world ${ctx.worldKey}${ctx.seed === null ? "" : ` seed ${ctx.seed}`}${collapseOn ? " \xB7 collapse-to-floor" : ""}`,
         IS_HEX ? "Layout hex (pointy-top odd-r, 6 neighbours) \u2014 \u2190\u2192/AD = W E \xB7 Q/E = NW/NE \xB7 Z/C = SW/SE \xB7 numpad 7/9/1/3 diagonals \xB7 swipe snaps to nearest of 6 (straight up/down \u2192 NE/SE)" : "Layout square (4 neighbours) \u2014 arrows / WASD / numpad \xB7 swipe dominant axis",
         `URL: ${ctx.url}`,
         `Pending: ${state.engine.pending === null ? "\u2014" : state.engine.pending}`,
@@ -858,7 +976,7 @@
   }
   function render() {
     placePlayer();
-    playerNumberNode.textContent = fmtNumber(state.number);
+    renderPnum();
     playerNode.classList.toggle("dead", state.over);
     renderStatus();
     if (els.feedbackLink) els.feedbackLink.href = feedbackHref();
@@ -886,6 +1004,10 @@
     const ev = state.engine.attempt(state.number, name.toUpperCase(), tileAt(next.x, next.y));
     state.number = ev.valid ? ev.result : NaN;
     state.pos = next;
+    if (collapseOn) {
+      state.spent.add(state.pos.x, state.pos.y);
+      collapseTileNode(state.pos.x, state.pos.y);
+    }
     render();
     animateSuperpose(ev, from, state.pos);
     showObservation(ev, ev.failed ? showRunOver(ev) : null);
@@ -904,6 +1026,7 @@
     state.pos = findStart(world());
     state.over = false;
     fromLog = [];
+    state.spent.clear();
     buildGrid();
     syncUrl();
     render();
@@ -923,6 +1046,8 @@
       else p.delete("variant");
       p.set("rule", state.ruleKey);
       p.set("fail", state.failKey);
+      if (collapseOn !== (v?.collapse ?? false)) p.set("collapse", collapseOn ? "1" : "0");
+      else p.delete("collapse");
       if (IS_HEX) p.set("layout", "hex");
       else p.delete("layout");
       if (state.debug) p.set("debug", "1");
@@ -947,12 +1072,18 @@
     restart(`World gen \u2014 ${world().name}. Number = 0.`);
   }
   function nextRule() {
+    if (!IS_HEX && !confirmWipe("rule")) return;
     state.ruleKey = cycle(["replace", "add", "eval"], state.ruleKey);
     restart(`Collision rule \u2192 ${state.ruleKey} (${state.engine.rule.name}). Number = 0.`);
   }
   function nextFailure() {
+    if (!IS_HEX && !confirmWipe("fail")) return;
     state.failKey = cycle(["notUp", "none"], state.failKey);
     restart(`Failure rule \u2192 ${state.failKey} (${state.engine.failure.name}). Number = 0.`);
+  }
+  function toggleCollapse() {
+    collapseOn = !collapseOn;
+    restart(`Collapse-to-floor ${collapseOn ? "ON \u2014 tiles burn out behind you" : "OFF"}. Number = 0.`);
   }
   function applyEngine() {
     state.engine = createEngine(state.ruleKey, state.failKey);
@@ -960,12 +1091,20 @@
   var MOVE_KEYS = IS_HEX ? {
     ArrowLeft: "W",
     ArrowRight: "E",
+    A: "W",
+    D: "E",
     a: "W",
     d: "E",
+    Q: "NW",
+    E: "NE",
     q: "NW",
     e: "NE",
+    Z: "SW",
+    C: "SE",
     z: "SW",
     c: "SE",
+    W: "W",
+    S: "S",
     Numpad4: "W",
     Numpad6: "E",
     Numpad7: "NW",
@@ -977,6 +1116,10 @@
     ArrowDown: "down",
     ArrowLeft: "left",
     ArrowRight: "right",
+    W: "up",
+    S: "down",
+    A: "left",
+    D: "right",
     w: "up",
     s: "down",
     a: "left",
@@ -986,6 +1129,11 @@
     Numpad4: "left",
     Numpad6: "right"
   };
+  function confirmWipe(action) {
+    if (state.engine.turn === 0) return true;
+    const label = action === "rule" ? "collision rule" : "failure rule";
+    return window.confirm(`Switch ${label}? This restarts the run (${state.engine.turn} moves in).`);
+  }
   var HEX_NO_NS_KEYS = /* @__PURE__ */ new Set(["ArrowUp", "ArrowDown", "w", "s", "W", "S", "Numpad8", "Numpad2", "8", "2"]);
   function showHexNoNorthSouth() {
     const obs = els.observation;
@@ -1009,7 +1157,8 @@
   }
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const move = MOVE_KEYS[e.key] || MOVE_KEYS[e.code];
+    const direct = MOVE_KEYS[e.key];
+    const move = direct ?? MOVE_KEYS[e.key.toLowerCase()] ?? MOVE_KEYS[e.code];
     if (move) {
       e.preventDefault();
       tryMove(move);
@@ -1032,6 +1181,8 @@
       nextRule();
     } else if (k === "f") {
       nextFailure();
+    } else if (k === "x") {
+      toggleCollapse();
     } else if (IS_HEX && HEX_NO_NS_KEYS.has(e.key)) {
       e.preventDefault();
       showHexNoNorthSouth();
@@ -1050,6 +1201,7 @@
     else if (action === "worldgen") nextGenerated();
     else if (action === "rule") nextRule();
     else if (action === "fail") nextFailure();
+    else if (action === "collapse") toggleCollapse();
     else if (action === "feedback") openFeedback();
   });
   var touchStart = null;
@@ -1085,6 +1237,15 @@
   }, { passive: false });
   if (copyBtn instanceof HTMLButtonElement) {
     copyBtn.addEventListener("click", copyRunDump);
+  }
+  if (issueBtn instanceof HTMLButtonElement) {
+    issueBtn.addEventListener("click", openIssue);
+  }
+  if (copyRunBtn instanceof HTMLButtonElement) {
+    copyRunBtn.addEventListener("click", copyRunDump);
+  }
+  if (openIssueBtn instanceof HTMLButtonElement) {
+    openIssueBtn.addEventListener("click", openIssue);
   }
   if (IS_HEX) {
     const keyNote = document.getElementById("key-note");

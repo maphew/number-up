@@ -33,7 +33,9 @@ listen for.
 
 ## Feedback
 
-- (nothing yet)
+- 2026-10-02 — No mechanics change (collapse experiment ships as opt-in
+  `fallout`). Updated date unchanged.
+- (nothing else yet)
 
 ## Musings: branches and extensions
 

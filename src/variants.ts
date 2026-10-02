@@ -16,6 +16,8 @@ export interface Variant {
   fail: FailureName;
   world: WorldKey;
   hypothesis: string;
+  updated: string;
+  collapse?: boolean;
 }
 
 export const VARIANTS = {
@@ -27,6 +29,7 @@ export const VARIANTS = {
     fail: 'notUp',
     world: 'b',
     hypothesis: 'You will read the signs as moves to make, not obstacles to hit, holding a number and then running a row of signs on purpose. If you avoid the signs instead, the verb reading is ours, not yours.',
+    updated: '2026-09-30',
   },
   accretion: {
     name: 'Accretion',
@@ -36,6 +39,7 @@ export const VARIANTS = {
     fail: 'notUp',
     world: 'a',
     hypothesis: 'You can keep this going by picking a path where every tile grows you. If it turns into bookkeeping once your number passes 40, plain addition is not enough on its own.',
+    updated: '2026-09-30',
   },
   becoming: {
     name: 'Becoming',
@@ -45,6 +49,7 @@ export const VARIANTS = {
     fail: 'notUp',
     world: 'c',
     hypothesis: 'You will feel every move as a commitment, because your number is rented, never owned. If you reduce it to chasing the biggest neighbour, the tightrope is just a greed walk.',
+    updated: '2026-09-30',
   },
   rehearsal: {
     name: 'Rehearsal',
@@ -54,6 +59,7 @@ export const VARIANTS = {
     fail: 'none',
     world: 'b',
     hypothesis: 'With nothing to lose, you decide what the game is. If you keep hunting bigger numbers anyway, curiosity was never about the stakes. If you drift and stop, failure was doing the work all along.',
+    updated: '2026-09-30',
   },
   hoarder: {
     name: 'Hoarder',
@@ -63,6 +69,7 @@ export const VARIANTS = {
     fail: 'none',
     world: 'full',
     hypothesis: 'You keep choosing paths even with no threat, or you drift once dying is impossible. Either way you tell us whether growing for its own sake is enough to keep you moving.',
+    updated: '2026-09-30',
   },
   masquerade: {
     name: 'Masquerade',
@@ -72,6 +79,18 @@ export const VARIANTS = {
     fail: 'none',
     world: 'full',
     hypothesis: 'Once survival is off the table, you make up your own goals, and that is the evidence that the premise generates play by itself. If you just wander, becoming needs stakes to matter.',
+    updated: '2026-09-30',
+  },
+  fallout: {
+    name: 'Fallout',
+    tagline: 'every tile burns out behind you; routing is the game',
+    how: 'Walk like Verbs, but every tile you touch collapses to floor and re-entry ends the run. Plan a route that never revisits.',
+    rule: 'eval',
+    fail: 'notUp',
+    world: 'full',
+    hypothesis: 'With re-entry fatal, you will plan routes instead of mashing loops. If world full becomes a 5-move puzzle with a best Number near 243, finiteness reads as routing, not as shortness.',
+    updated: '2026-10-02',
+    collapse: true,
   },
 } satisfies Record<string, Variant>;
 
@@ -90,10 +109,15 @@ export function getVariant(id: string): ResolvedVariant | null {
   return { id, ...VARIANTS[id] };
 }
 
-export function variantFor(ruleKey: string, failKey: string): ResolvedVariant | null {
+export function variantFor(
+  ruleKey: string,
+  failKey: string,
+  collapse = false,
+): ResolvedVariant | null {
   for (const id of VARIANT_ORDER) {
-    const v = VARIANTS[id];
-    if (v.rule === ruleKey && v.fail === failKey) return { id, ...v };
+    const v: Variant = VARIANTS[id];
+    if (v.rule === ruleKey && v.fail === failKey && (v.collapse ?? false) === collapse)
+      return { id, ...v };
   }
   return null;
 }

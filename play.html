@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>NUMBER UP — play</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -41,14 +41,18 @@
 </main>
 
 <section id="messages">
-  <div id="observation">NUMBER UP. Move with arrow keys, WASD, or numpad.</div>
+  <div id="observation" aria-live="polite">NUMBER UP. Move with arrow keys, WASD, or numpad.</div>
   <section id="notebook" class="debug-only" aria-label="Lab notebook">
     <pre id="note-meta"></pre>
     <div id="note-totals"></div>
     <pre id="note-log"></pre>
-    <div id="note-actions"><button type="button" id="note-copy">copy run</button></div>
+    <div id="note-actions"><button type="button" id="note-copy">copy run</button> <button type="button" id="note-issue">open issue</button></div>
   </section>
   <pre id="history" class="debug-only"></pre>
+  <div id="actions">
+    <button type="button" id="copy-run" aria-label="Copy run dump">copy run</button>
+    <button type="button" id="open-issue" aria-label="Open prefilled GitHub issue">open issue</button>
+  </div>
   <div id="help">
     <span class="key-note" id="key-note">arrows / swipe move</span>
     <button type="button" data-action="restart" aria-label="Restart run"><kbd>R</kbd> restart</button>
@@ -57,10 +61,11 @@
     <button type="button" data-action="worldgen" aria-label="Generate new world"><kbd>G</kbd> new world</button>
     <button type="button" data-action="rule" aria-label="Cycle rule"><kbd>C</kbd> rule</button>
     <button type="button" data-action="fail" aria-label="Cycle fail rule"><kbd>F</kbd> fail-rule</button>
+    <button type="button" data-action="collapse" aria-label="Toggle collapse-to-floor"><kbd>X</kbd> collapse</button>
     <button type="button" data-action="feedback" aria-label="Email feedback"><kbd>@</kbd> feedback</button>
     <button type="button" data-action="catalogue" aria-label="Back to the catalogue"><kbd>Esc</kbd> home</button>
   </div>
-  <div id="feedback">Playing this? Tell me what it felt like — <a id="feedback-mail" href="mailto:maphew+number-up@gmail.com?subject=NUMBER%20UP%20feedback">email maphew+number-up@gmail.com</a> (your run state gets attached).</div>
+  <div id="feedback">Playing this? Tell me what it felt like — <a id="feedback-mail" href="mailto:maphew+number-up@gmail.com?subject=NUMBER%20UP%20feedback">email maphew+number-up@gmail.com</a> · <a id="feedback-issue" href="https://github.com/maphew/number-up/issues/new">open a GitHub issue</a> (your run state gets attached).</div>
 </section>
 
 <script src="dist/play.js"></script>
