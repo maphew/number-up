@@ -8,7 +8,10 @@ and in [sync-concepts](https://github.com/gastownhall/beads/blob/main/docs/core-
 
 **Repo profile:** `agent.profile = team-maintainer` — closing beads, running
 quality gates, and commit/push/`bd dolt push` are routine parts of session
-close unless current instructions say otherwise.
+close unless current instructions say otherwise. Outward-facing actions stay
+opt-in: open GitHub PRs or issues, post comments, or send notifications only
+when explicitly asked (they are public and notify other people, and are not
+needed to keep local work safe).
 
 ## Non-Interactive Shell Commands
 
