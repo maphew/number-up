@@ -632,7 +632,7 @@ function nextRule() {
 
 function nextFailure() {
   if (!IS_HEX && !confirmWipe('fail')) return;
-  state.failKey = cycle(['notUp', 'none'], state.failKey);
+  state.failKey = cycle(['notUp', 'down', 'none'], state.failKey);
   restart(`Failure rule → ${state.failKey} (${state.engine.failure.name}). Number = 0.`);
 }
 

@@ -32,6 +32,10 @@ game together and the lab should look elsewhere for the core interaction.
   the last." That is replace/Becoming. Under `add`, any positive tile goes
   UP (`n + k > n` for `k > 0`); death is a `0` or a sign (flat). Gallery
   `how` already matches the code. Not reconciled.
+- 2026-10-02 — World a kept numbers-only, but the `0` that sat immediately
+  right of the start was moved off the start ring, so all four first moves are
+  now positive (0/4 fatal). Longest route 21 moves. Zeros still exist as the
+  walls this variant's musings wanted.
 
 ## Changelog
 

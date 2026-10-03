@@ -75,6 +75,17 @@
         if (ev.result === ev.oldNumber) return "Number did not go UP";
         return null;
       }
+    },
+    down: {
+      name: "NUMBER WENT DOWN",
+      failed(ev) {
+        if (!ev.valid) {
+          if (ev.noOperand !== void 0) return `${ev.noOperand} had nothing to act on`;
+          return "Number became invalid \u2014 there is no Number left to compare";
+        }
+        if (ev.result < ev.oldNumber) return "Number went DOWN";
+        return null;
+      }
     }
   };
   function named(table, key, fallback) {
@@ -160,9 +171,9 @@
       name: "Full \u2014 mixed grid",
       rows: [
         ["7", "+", "3", "\xD7", "8"],
-        ["\u2212", "4", "\xF7", "9", "+"],
-        ["2", "\xD7", ".", "6", "+"],
-        ["+", "5", "\xF7", "1", "\xD7"],
+        ["\u2212", "4", "5", "9", "+"],
+        ["2", "3", ".", "6", "+"],
+        ["+", "5", "4", "1", "\xD7"],
         ["8", "\u2212", "3", "+", "7"]
       ]
     },
@@ -171,7 +182,7 @@
       rows: [
         ["3", "8", "2", "5", "9"],
         ["6", "1", "7", "4", "2"],
-        ["9", "5", ".", "0", "3"],
+        ["0", "5", ".", "4", "3"],
         ["1", "4", "8", "2", "6"],
         ["5", "7", "0", "3", "8"]
       ]
@@ -179,31 +190,31 @@
     b: {
       name: "B \u2014 Number + Operator",
       rows: [
-        ["+", "4", "\u2212", "2", "\xD7"],
-        ["9", "\xD7", "6", "+", "8"],
-        ["\xF7", "1", ".", "7", "\xF7"],
-        ["3", "+", "5", "\xD7", "2"],
-        ["\u2212", "8", "+", "9", "\u2212"]
+        ["\xD7", "+", "+", "+", "\xD7"],
+        ["+", "+", "9", "+", "+"],
+        ["+", "6", ".", "7", "+"],
+        ["+", "+", "3", "+", "+"],
+        ["\xD7", "+", "+", "+", "\xD7"]
       ]
     },
     c: {
       name: "C \u2014 UP vs DOWN",
       rows: [
-        ["4", "\u2212", "1", "9", "+"],
-        ["2", "+", "7", "\xF7", "3"],
-        ["\xD7", "5", ".", "9", "2"],
-        ["8", "\xF7", "0", "+", "6"],
-        ["+", "3", "\u2212", "1", "\xD7"]
+        ["1", "2", "3", "4", "5"],
+        ["10", "9", "8", "7", "6"],
+        ["11", "12", ".", "14", "15"],
+        ["20", "19", "18", "17", "16"],
+        ["21", "22", "23", "24", "25"]
       ]
     },
     d: {
       name: "D \u2014 Failure",
       rows: [
-        ["9", "\u2212", "0", "\xD7", "3"],
-        ["+", "\xF7", "5", "+", "7"],
-        ["\xD7", "2", ".", "\u2212", "0"],
-        ["\xF7", "4", "+", "1", "\xD7"],
-        ["8", "\u2212", "6", "\xF7", "2"]
+        ["9", "\u2212", "1", "\xD7", "4"],
+        ["+", "7", "\xD7", "3", "8"],
+        ["\xD7", "2", ".", "6", "\u2212"],
+        ["5", "\xF7", "0", "+", "9"],
+        ["3", "\xD7", "8", "\u2212", "2"]
       ]
     }
   };
@@ -325,6 +336,26 @@
       world: "full",
       hypothesis: "Once survival is off the table, you make up your own goals, and that is the evidence that the premise generates play by itself. If you just wander, becoming needs stakes to matter.",
       updated: "2026-09-30"
+    },
+    plateau: {
+      name: "Plateau",
+      tagline: "you become what you touch; only a downward step ends the run",
+      how: "Touch a number and become it. Touch one smaller than you and the run ends. Equal numbers, signs, and floor are safe ground.",
+      rule: "replace",
+      fail: "down",
+      world: "c",
+      hypothesis: 'With flat ground allowed, becoming stops being a strict-increase tightrope: equal numbers and operator tiles become resting squares you can plan from. If play still reduces to chasing the biggest neighbour, the tightrope was the game; if you route through flat squares, "up" alone was never the point.',
+      updated: "2026-10-02"
+    },
+    cadence: {
+      name: "Cadence",
+      tagline: "operators are verbs; only a downward step ends the run",
+      how: "Touch a number to hold it, then let the signs act on it. A flat result \u2014 floor, or a number equal to yours \u2014 is safe; only Number going down, or a sign that yields no Number, ends the run.",
+      rule: "eval",
+      fail: "down",
+      world: "b",
+      hypothesis: "Once standing still is safe, the verb grammar can be experimented with instead of feared, with no dying to every operator or equal number. If runs still collapse in a few moves, strict UP was not what made Verbs hard; if they lengthen into composition, the flat death was punishing learning, not play.",
+      updated: "2026-10-02"
     },
     fallout: {
       name: "Fallout",
@@ -1078,7 +1109,7 @@ What happened / what should have happened:
   }
   function nextFailure() {
     if (!IS_HEX && !confirmWipe("fail")) return;
-    state.failKey = cycle(["notUp", "none"], state.failKey);
+    state.failKey = cycle(["notUp", "down", "none"], state.failKey);
     restart(`Failure rule \u2192 ${state.failKey} (${state.engine.failure.name}). Number = 0.`);
   }
   function toggleCollapse() {

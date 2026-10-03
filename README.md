@@ -25,17 +25,33 @@ and carries a hypothesis it exists to test. The registry in `variants.js` is
 the single source of truth; per-variant notebooks (hypothesis, feedback,
 branching musings) live in `variants/`.
 
+**With stakes** (one non-up move ends the run):
+
 | variant | collision | failure | in one line |
 |---------|-----------|---------|-------------|
 | Verbs | `eval` | `notUp` | operators are verbs, numbers are fuel |
 | Accretion | `add` | `notUp` | everything sticks; only growth keeps you alive |
 | Becoming | `replace` | `notUp` | you become what you touch; smaller ends the run |
 | Fallout | `eval` + collapse | `notUp` | every tile burns out behind you; routing is the game |
+
+**Gentler stakes** (only a downward step ends the run; flat is safe):
+
+| variant | collision | failure | in one line |
+|---------|-----------|---------|-------------|
+| Plateau | `replace` | `down` | become tiles; only shrinking ends you |
+| Cadence | `eval` | `down` | operators are verbs, without the flat-death |
+
+**Open field** (nothing can hurt you):
+
+| variant | collision | failure | in one line |
+|---------|-----------|---------|-------------|
 | Rehearsal | `eval` | `none` | the verb grammar, stakes removed |
 | Hoarder | `add` | `none` | accumulation as a fidget toy |
 | Masquerade | `replace` | `none` | identity swap with nothing to lose |
 
 Any other rule/fail pairing plays as **custom** (shown in the header).
+The failure rule is a candidate too: <kbd>F</kbd> cycles `notUp → down → none`
+(`?fail=down` selects it directly).
 
 ## Controls
 
@@ -59,9 +75,9 @@ Any other rule/fail pairing plays as **custom** (shown in the header).
   not just the last ten moves)
 - Shortcut chips below the map (`R / N G C F X / @`) are clickable and perform
   each shortcut with mouse or touch
-- URL params: `?variant=verbs|accretion|becoming|fallout|rehearsal|hoarder|masquerade`
+- URL params: `?variant=verbs|accretion|becoming|fallout|plateau|cadence|rehearsal|hoarder|masquerade`
   (sets rule, failure, and starting world; takes precedence) or the lower-level
-  `?world=full|a|b|c|d|gen&seed=N&rule=replace|add|eval&fail=notUp|none&debug=1`
+  `?world=full|a|b|c|d|gen&seed=N&rule=replace|add|eval&fail=notUp|down|none&debug=1`
 - URL param `?collapse=1` (or `X` key / collapse chip): tiles collapse to floor
   after collision — opt-in experiment, default off; the `fallout` variant sets
   it on. Replay-safe: `?collapse=0` forces it off.
@@ -99,10 +115,16 @@ Any other rule/fail pairing plays as **custom** (shown in the header).
   and that pending operand — one interpretation of "operator as verb").
 - **Failure rule**: `engine.js` → `FAILURE_RULES`. Each rule is
   `failed(event) → reason or null`. Shipped candidates: `notUp` (provisional:
-  the run ends when Number fails to go UP or becomes invalid) and `none`.
+  the run ends when Number fails to go UP or becomes invalid), `down` (the
+  gentler candidate: the run ends only when Number goes DOWN or becomes
+  invalid, so flat is safe ground), and `none`.
 - **Test worlds**: `world.js` → `WORLDS`. Hand-authored 5×5 rows of tiles
   (`+ − × ÷` or numbers); `.` marks the starting cell. `generateWorld(seed)`
-  builds a deterministic random 5×5 grid the same shape.
+  builds a deterministic random 5×5 grid the same shape. The hand-authored
+  worlds are laid out around each variant's grammar (operator runs beside a big
+  number for `eval`, an ascending route for `replace`, positive corridors for
+  `add`, a routing problem for collapse) and every opening guarantees at least
+  one survivable first move — `test/world.test.js` keeps them that way.
 - **Lattice**: `lattice.ts` → `createSquareLattice` / `createHexLattice`.
   Pure board geometry behind one small interface: centres, steps (null =
   edge), swipe resolution, bounds, cell path. Square is the default;

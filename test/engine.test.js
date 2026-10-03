@@ -97,6 +97,48 @@ describe('notUp failure rule boundaries (check order: invalid, DOWN, flat)', () 
   });
 });
 
+describe('down failure rule: only a decrease ends the run', () => {
+  const { down } = FAILURE_RULES;
+
+  it('invalid is reported first (no Number to carry onward)', () => {
+    const reason = down.failed({ valid: false, result: null, oldNumber: 5 });
+    assert.match(reason, /invalid/i);
+    assert.doesNotMatch(reason, /\bUP\b/i); // down must not explain itself via UP
+  });
+
+  it('DOWN is reported when the Number decreases', () => {
+    assert.match(down.failed({ valid: true, result: 3, oldNumber: 5 }), /DOWN/);
+  });
+
+  it('flat is NOT a failure (same level is fine)', () => {
+    assert.equal(down.failed({ valid: true, result: 5, oldNumber: 5 }), null);
+  });
+
+  it('going UP is not a failure', () => {
+    assert.equal(down.failed({ valid: true, result: 6, oldNumber: 5 }), null);
+  });
+
+  it('end-to-end: flat passes, DOWN fails, invalid fails under eval', () => {
+    const engine = createEngine('eval', 'down');
+    engine.attempt(1, 'up', '6'); // current 6, pending 6
+    const flat = engine.attempt(6, 'up', 'wall');
+    assert.equal(flat.result, 6);
+    assert.equal(flat.failed, false);
+
+    const engine2 = createEngine('eval', 'down');
+    engine2.attempt(1, 'up', '6');
+    const down = engine2.attempt(6, 'up', '−');
+    assert.equal(down.result, 0);
+    assert.equal(down.failed, true);
+    assert.match(down.failReason, /DOWN/);
+
+    const engine3 = createEngine('eval', 'down');
+    const invalid = engine3.attempt(5, 'up', '+');
+    assert.equal(invalid.failed, true);
+    assert.match(invalid.failReason, /had nothing to act on/);
+  });
+});
+
 describe('createEngine wiring', () => {
   it('exposes the selected rule and failure rule registries', () => {
     const engine = createEngine('eval', 'notUp');

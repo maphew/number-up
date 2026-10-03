@@ -8,16 +8,24 @@ Registry: `src/variants.ts` → `VARIANTS.fallout` (collision `eval`, failure `n
 ## Hypothesis
 
 With re-entry fatal, you will plan routes instead of mashing loops. World full
-becomes a 5-move routing puzzle with a best Number near 243: pick up the 9
-before the 6, never revisit. If finiteness reads as routing rather than
-shortness, collapse is the structural fix the alpha review simulated
+becomes a short routing puzzle with a best Number of exactly 243: hold the 9,
+then run two `+` and a `×` without revisiting. If finiteness reads as routing
+rather than shortness, collapse is the structural fix the alpha review simulated
 (unbounded runs vanish, 4–9 band grows 8.5% → 47.5%, ≤3 band grows to ~52%).
 
 Verified at HEAD by exhaustive simple-path search over world full (no
-revisits, `notUp` gating): best is exactly 243 in 5 moves —
-RIGHT:6=6 → UP:9=9 → RIGHT:+=18 → DOWN:+=27 → DOWN:×=243.
+revisits, `notUp` gating). Two different measures, do not conflate them:
+- best Number is exactly **243**, reachable in **5** moves:
+  UP:5=5 → RIGHT:9=9 → RIGHT:+=18 → DOWN:+=27 → DOWN:×=243.
+- longest survivable route is **7** moves (same ceiling of 243):
+  LEFT:3=3 → UP:4=4 → RIGHT:5=5 → RIGHT:9=9 → RIGHT:+=18 → DOWN:+=27 → DOWN:×=243.
+
+World full was recast (2026-10-02) so the start ring is numbers, not operators:
+0/4 first moves are now fatal, down from 3/4.
 1500-seed headless distribution reproduced: baseline 40.1% ≤3 / 11.7% 4–9 /
 48.3% 30+ vs collapse 52.4% ≤3 / 47.5% 4–9 / 0.0% 30+ (blip 0.1% at 10–29).
+The distribution is over `generateWorld` seeds, which are unchanged; the
+hand-authored world above is the new opening.
 
 See `num-wkq.1` for the before/after distribution script expectations.
 

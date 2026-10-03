@@ -39,6 +39,11 @@ World b is operator-dense so verbs dominate the texture of play.
   operand always observable; design tension (pending as carried state vs
   Number/Up/position/superposition) stays open — if it cannot be observed it
   cannot be learned. See `num-wkq.2`.
+- 2026-10-02 — World b rebuilt from random noise into an operator field with a
+  number ring around the start. The old b had no adjacent `+` tiles at all, so
+  the "run the plus lane" loop this variant is *about* could not exist (longest
+  route 4 moves). Rebuilt: 0/4 fatal first moves, longest route 20 moves. Same
+  world now also opens Cadence (`eval × down`).
 - (nothing else yet)
 
 ## Musings: branches and extensions

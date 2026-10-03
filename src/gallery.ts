@@ -26,6 +26,7 @@ if (gameParams.some((k) => params.has(k))) {
 
   const GROUPS = [
     { label: 'with stakes: one non-up move ends the run', fail: 'notUp' },
+    { label: 'gentler stakes: only a downward step ends the run', fail: 'down' },
     { label: 'open field: nothing can hurt you', fail: 'none' },
   ];
 

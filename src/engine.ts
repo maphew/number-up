@@ -130,6 +130,17 @@ export const FAILURE_RULES = {
       return null;
     },
   },
+  down: {
+    name: 'NUMBER WENT DOWN',
+    failed(ev) {
+      if (!ev.valid) {
+        if (ev.noOperand !== undefined) return `${ev.noOperand} had nothing to act on`;
+        return 'Number became invalid — there is no Number left to compare';
+      }
+      if (ev.result < ev.oldNumber) return 'Number went DOWN';
+      return null;
+    },
+  },
 } satisfies Record<string, FailureRule>;
 
 export type FailureName = keyof typeof FAILURE_RULES;

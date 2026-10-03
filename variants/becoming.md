@@ -35,6 +35,11 @@ listen for.
 
 - 2026-10-02 — No mechanics change (collapse experiment ships as opt-in
   `fallout`). Updated date unchanged.
+- 2026-10-02 — World c rebuilt from random noise into an ascending route:
+  longest non-revisiting route 12 moves (was 1 — the first move onto 7 was the
+  whole game), 0/4 fatal first moves. Greedy "take the biggest neighbour" now
+  dies at 4, so the board is a route with real choices rather than a greed walk.
+  Same world also opens Plateau (`replace × down`).
 - (nothing else yet)
 
 ## Musings: branches and extensions
