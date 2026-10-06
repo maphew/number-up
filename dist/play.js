@@ -28,6 +28,7 @@
       superpose(currentNumber, tile, ctx) {
         const kind = classify(tile);
         if (kind !== "num") return currentNumber;
+        ctx.applied = true;
         ctx.pending = Number(tile);
         return Number(tile);
       }
@@ -37,6 +38,7 @@
       superpose(currentNumber, tile, ctx) {
         const kind = classify(tile);
         if (kind === "op" || kind === "floor") return currentNumber;
+        ctx.applied = true;
         ctx.pending = Number(tile);
         return currentNumber + Number(tile);
       }
@@ -47,10 +49,12 @@
         const kind = classify(tile);
         if (kind === "floor") return currentNumber;
         if (kind === "num") {
+          ctx.applied = true;
           ctx.pending = Number(tile);
           return Number(tile);
         }
         if (!isOperator(tile)) return NaN;
+        ctx.applied = true;
         if (ctx.pending === null) {
           ctx.noOperand = tile;
           return NaN;
@@ -65,6 +69,7 @@
         const kind = classify(tile);
         if (kind === "floor") return currentNumber;
         if (kind === "num") {
+          ctx.applied = true;
           if (armed !== null) {
             ctx.carried = null;
             ctx.effect = { kind: "consume" };
@@ -74,6 +79,7 @@
           return Number(tile);
         }
         if (!isOperator(tile)) return NaN;
+        ctx.applied = true;
         ctx.carried = tile;
         ctx.effect = armed === null ? { kind: "pickup" } : { kind: "opswap", dropped: armed };
         return currentNumber;
@@ -91,11 +97,11 @@
       name: "NUMBER NOT UP",
       failed(ev) {
         if (!ev.valid) {
-          if (ev.noOperand !== void 0) return `${ev.noOperand} had nothing to act on`;
-          return "Number became invalid \u2014 UP is undefined here";
+          if (ev.noOperand !== void 0) return `${ev.noOperand} had no number to act on`;
+          return "That move was impossible \u2014 it made no number";
         }
-        if (ev.result < ev.oldNumber) return "Number went DOWN";
-        if (ev.result === ev.oldNumber) return "Number did not go UP";
+        if (ev.result < ev.oldNumber) return "Your number went down";
+        if (ev.result === ev.oldNumber) return "Your number did not go up";
         return null;
       }
     },
@@ -103,10 +109,10 @@
       name: "NUMBER WENT DOWN",
       failed(ev) {
         if (!ev.valid) {
-          if (ev.noOperand !== void 0) return `${ev.noOperand} had nothing to act on`;
-          return "Number became invalid \u2014 there is no Number left to compare";
+          if (ev.noOperand !== void 0) return `${ev.noOperand} had no number to act on`;
+          return "That move was impossible \u2014 your number vanished";
         }
-        if (ev.result < ev.oldNumber) return "Number went DOWN";
+        if (ev.result < ev.oldNumber) return "Your number went down";
         return null;
       }
     }
@@ -114,11 +120,65 @@
   function named(table, key, fallback) {
     return Object.prototype.hasOwnProperty.call(table, key) ? key : fallback;
   }
+  function listChecks(table, picked) {
+    const out = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const k of picked) {
+      if (seen.has(k)) continue;
+      if (Object.prototype.hasOwnProperty.call(table, k)) {
+        seen.add(k);
+        out.push(k);
+      }
+    }
+    return out;
+  }
   function createEngine(ruleName, failureName) {
     const resolvedRule = named(RULES, ruleName, "eval");
     const resolvedFailure = named(FAILURE_RULES, failureName, "notUp");
-    const rule = RULES[resolvedRule];
-    const failure = FAILURE_RULES[resolvedFailure];
+    return createEngineFrom([resolvedRule], [resolvedFailure], false);
+  }
+  function createChooseyEngine(checks) {
+    return createEngineFrom(
+      listChecks(RULES, checks.rules),
+      listChecks(FAILURE_RULES, checks.fails),
+      true
+    );
+  }
+  function createEngineFrom(components, enders, asChoosey) {
+    const composite = components.length !== 1 || enders.length !== 1;
+    const firstRule = components[0] ?? "replace";
+    const firstEnder = enders[0] ?? "notUp";
+    const rule = composite ? {
+      name: "choosey \u2014 first ticked rule that fits the tile",
+      superpose(currentNumber, tile, ctx) {
+        for (const key of components) {
+          const probe = { pending: ctx.pending, carried: ctx.carried };
+          const result = RULES[key].superpose(currentNumber, tile, probe);
+          if (probe.applied) {
+            ctx.pending = probe.pending;
+            ctx.carried = probe.carried;
+            ctx.noOperand = probe.noOperand;
+            ctx.effect = probe.effect;
+            return result;
+          }
+        }
+        return currentNumber;
+      }
+    } : RULES[firstRule];
+    const failure = composite ? {
+      name: "choosey \u2014 first ticked run-ender to fire",
+      failed(ev) {
+        for (const key of enders) {
+          const reason = FAILURE_RULES[key].failed(ev);
+          if (reason !== null) return reason;
+        }
+        return null;
+      }
+    } : FAILURE_RULES[firstEnder];
+    const resolvedRule = composite ? "choosey" : asChoosey ? "choosey" : firstRule;
+    const resolvedFailure = composite ? "choosey" : asChoosey ? "choosey" : firstEnder;
+    const ruleList = [...components];
+    const enderList = [...enders];
     let pending = null;
     let carried = null;
     let turn = 0;
@@ -135,6 +195,12 @@
       },
       get failureName() {
         return resolvedFailure;
+      },
+      get ruleChecks() {
+        return ruleList;
+      },
+      get failureChecks() {
+        return enderList;
       },
       get turn() {
         return turn;
@@ -255,9 +321,24 @@
         ["5", "\xF7", "0", "+", "9"],
         ["3", "\xD7", "8", "\u2212", "2"]
       ]
+    },
+    // num-dn2: the rule-composition lab — the tiles offer every tile kind
+    // (flat pairs, every sign, a 0 sitting on a ÷ trap), but which rules apply
+    // is decided by the ticked checkbox list under the board (play.ts wires
+    // the panel; the engine composes them first-applicable-wins).
+    choosey: {
+      name: "Choosey \u2014 you pick the rules",
+      updated: "2026-10-05 23:00 PDT",
+      rows: [
+        ["+", "+", "+", "+", "+"],
+        ["+", "6", "9", "9", "\xD7"],
+        ["+", "5", ".", "7", "+"],
+        ["6", "\xD7", "6", "0", "\xF7"],
+        ["+", "+", "\u2212", "+", "8"]
+      ]
     }
   };
-  var WORLD_ORDER = ["full", "a", "b", "c", "d"];
+  var WORLD_ORDER = ["full", "a", "b", "c", "d", "choosey"];
   var COLLAPSED_TILE = "floor";
   var HOLE = "\u2205";
   function createMatterState() {
@@ -452,6 +533,143 @@
         return { id, ...v };
     }
     return null;
+  }
+
+  // src/plain.ts
+  var RULE_LONG = {
+    replace: "Touch a number and become it: your whole number is traded for what you touched. Signs and empty ground do nothing.",
+    add: "Every number you touch is added onto yours. Signs and empty ground do nothing.",
+    eval: "Touch a number to pick it up and hold it, and the signs will use it. Touch a sign (+ \u2212 \xD7 \xF7) and it does its thing to you with the number you're holding: + grows you by it, \u2212 shrinks you, \xD7 multiplies, \xF7 splits you down.",
+    relay: "Numbers trade places with you when you step on them. Sign tiles hop onto you \u2014 you carry one, and the next number you touch, the sign spends itself on that number and eats it, leaving a pit nothing can enter."
+  };
+  var RULE_SHORT = {
+    replace: "become the tile",
+    add: "tiles add up",
+    eval: "signs act",
+    relay: "trade & pocket"
+  };
+  var FAILURE_LONG = {
+    none: "Nothing can end the run. Walk as long as you like.",
+    notUp: "Growth is the only safe step: if your number does not get bigger \u2014 flat, smaller, or an impossible move \u2014 the run ends.",
+    down: "Only a smaller number ends the run. Standing flat is safe."
+  };
+  var FAILURE_SHORT = {
+    none: "nothing can end it",
+    notUp: "only growing counts",
+    down: "only shrinking ends it"
+  };
+  var COLLAPSE_LONG = "Tiles you have stepped on vanish behind you. Stepping back on one does nothing.";
+  var WORLD_LONG = {
+    full: "A bit of everything: numbers and all four signs.",
+    a: "Nothing but numbers \u2014 the zeros are the walls.",
+    b: "A number ring at the start, and a good long run of plus signs.",
+    c: "Numbers climb away from the start; the biggest neighbours are quietly traps.",
+    d: "Built to test losing on purpose: a sign beside the start has no number to act on, and a 0 sits beside a \xF7.",
+    choosey: "The rules are not fixed \u2014 tick them on and off in the boxes under the board.",
+    gen: "A random 5\xD75 map. The same seed always makes the same map."
+  };
+  function rulesJoined(rules) {
+    return rules.map((r) => RULE_SHORT[r] ?? r).join(" + ") || "nothing ticked";
+  }
+  function failsJoined(fails) {
+    return fails.map((f) => FAILURE_SHORT[f] ?? f).join(" + ") || "nothing can end it";
+  }
+  var GLOSSARY = [
+    ["you", "the dot on the board \u2014 and the dot is your number."],
+    ["sign", "any of the four math tiles: + \u2212 \xD7 \xF7."],
+    ["holding a number", "you picked a number up by touching it; the next sign will use it."],
+    ["carrying a sign", "you stepped on a sign and it came with you, waiting to be spent."],
+    ["pit", "a tile that got eaten \u2014 nothing can move onto it again."],
+    ["run", "one walk, from the start until a run-ender fires (or forever)."],
+    ["world", "the map you are walking: full, a, b, c, d, choosey, or a generated one."],
+    ["variant", "a named pairing of touch rules + run-ender + starting map, on the front page."]
+  ];
+  function el(tag, cls, text) {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== void 0) node.textContent = text;
+    return node;
+  }
+  function variantSuffix(collapse) {
+    return collapse ? " \u269B" : "";
+  }
+  function renderRulesReference(target, hrefFor) {
+    target.textContent = "";
+    target.appendChild(el("h3", "ref-title", "A few words"));
+    const glossary = el("ul", "ref-list");
+    for (const [term, plain] of GLOSSARY) {
+      const item = el("li", "ref-item");
+      item.appendChild(el("span", "ref-key", term));
+      item.appendChild(el("span", "ref-plain", plain));
+      glossary.appendChild(item);
+    }
+    target.appendChild(glossary);
+    const rules = Object.keys(RULES);
+    const fails = Object.keys(FAILURE_RULES);
+    target.appendChild(el("h3", "ref-title", "Touch rules \u2014 what touching a tile does"));
+    const rulesList = el("ul", "ref-list");
+    for (const key of rules) {
+      const item = el("li", "ref-item");
+      item.appendChild(el("span", "ref-key", `${key} \u2014 ${RULE_SHORT[key]}`));
+      item.appendChild(el("span", "ref-plain", RULE_LONG[key]));
+      rulesList.appendChild(item);
+    }
+    target.appendChild(rulesList);
+    target.appendChild(el("h3", "ref-title", "Run-enders \u2014 what can end the run"));
+    const endersList = el("ul", "ref-list");
+    for (const key of fails) {
+      const item = el("li", "ref-item");
+      item.appendChild(el("span", "ref-key", `${key}: ${FAILURE_SHORT[key]}`));
+      item.appendChild(el("span", "ref-plain", FAILURE_LONG[key]));
+      endersList.appendChild(item);
+    }
+    target.appendChild(endersList);
+    target.appendChild(el("h3", "ref-title", "Lookup \u2014 every named rules pairing"));
+    const table = el("table", "ref-table");
+    const head = el("tr", "ref-row");
+    head.appendChild(el("th", "ref-cell head", "touch rule"));
+    for (const key of fails) head.appendChild(el("th", "ref-cell head", FAILURE_SHORT[key]));
+    table.appendChild(head);
+    for (const ruleKey2 of rules) {
+      const row = el("tr", "ref-row");
+      row.appendChild(el("th", "ref-cell head", `${ruleKey2} \u2014 ${RULE_SHORT[ruleKey2]}`));
+      for (const failKey2 of fails) {
+        const names = [];
+        for (const id of VARIANT_ORDER) {
+          const v = VARIANTS[id];
+          if (v.rule === ruleKey2 && v.fail === failKey2) {
+            const a = el("a", "ref-link", `${v.name}${variantSuffix(v.collapse ?? false)}`);
+            a.setAttribute("href", hrefFor({ id, ...v }));
+            names.push(a);
+          }
+        }
+        const cell = el("td", "ref-cell");
+        if (!names.length) {
+          cell.textContent = "\u2014 (custom)";
+        } else {
+          names.forEach((a, i) => {
+            if (i > 0) cell.appendChild(el("span", "ref-sep", " \xB7 "));
+            cell.appendChild(a);
+          });
+        }
+        row.appendChild(cell);
+      }
+      table.appendChild(row);
+    }
+    target.appendChild(table);
+    target.appendChild(el("p", "ref-note", "\u269B = the tiles also vanish behind you after you step on them."));
+    target.appendChild(el("h3", "ref-title", "Worlds \u2014 the maps"));
+    const worldsList = el("ul", "ref-list");
+    for (const key of Object.keys(WORLDS)) {
+      const item = el("li", "ref-item");
+      item.appendChild(el("span", "ref-key", `${key} \u2014 ${WORLDS[key].name}`));
+      item.appendChild(el("span", "ref-plain", WORLD_LONG[key]));
+      const openers = VARIANT_ORDER.filter((id) => VARIANTS[id].world === key).map((id) => VARIANTS[id].name);
+      item.appendChild(el("span", "ref-meta", openers.length ? `opens for: ${openers.join(", ")}` : "opens for: choosey + any custom pairing you point here"));
+      worldsList.appendChild(item);
+    }
+    target.appendChild(worldsList);
+    target.appendChild(el("p", "ref-note", 'Any other pairing plays as "custom". URL params: ?rule=replace|add|eval|relay &fail=notUp|down|none &world=full|a|b|c|d|choosey|gen &seed=N &variant=<name>.'));
   }
 
   // src/lattice.ts
@@ -806,19 +1024,32 @@
   }
 
   // src/version.ts
-  var APP_VERSION = "0.2.0";
+  var APP_VERSION = "0.3.0";
 
   // src/play.ts
   function mustEl(id) {
-    const el = document.getElementById(id);
-    if (el === null) throw new Error(`missing #${id}`);
-    return el;
+    const el2 = document.getElementById(id);
+    if (el2 === null) throw new Error(`missing #${id}`);
+    return el2;
   }
   function isKeyOf(pool, key) {
     return Object.prototype.hasOwnProperty.call(pool, key);
   }
   function pickKey(key, pool, fallback) {
     return key !== null && isKeyOf(pool, key) ? key : fallback;
+  }
+  function pickChecks(param, pool, fallback) {
+    if (param === null) return fallback;
+    const out = [];
+    const seen = /* @__PURE__ */ new Set();
+    for (const raw of param.split(",")) {
+      const key = raw.trim();
+      if (key && !seen.has(key) && isKeyOf(pool, key)) {
+        seen.add(key);
+        out.push(key);
+      }
+    }
+    return out;
   }
   function isWorldKey(key) {
     return isKeyOf(WORLDS, key);
@@ -839,11 +1070,19 @@
     if (raw !== null && isWorldKey(raw)) return raw;
     return variantWorld ?? "full";
   }
+  function chooseyChecksAtStartup() {
+    if (resolveWorldKey(rawWorld, rawVariant?.world) !== "choosey") return { rules: [], fails: [] };
+    return {
+      rules: pickChecks(params.get("crules"), RULES, rawVariant ? [rawVariant.rule] : ["eval"]),
+      fails: pickChecks(params.get("cfails"), FAILURE_RULES, rawVariant ? [rawVariant.fail] : ["notUp"])
+    };
+  }
   var state = {
     worldKey: resolveWorldKey(rawWorld, rawVariant?.world),
     genSeed: null,
     ruleKey,
     failKey,
+    chooseyChecks: chooseyChecksAtStartup(),
     debug: params.get("debug") === "1",
     number: 0,
     pos: { x: 2, y: 2 },
@@ -904,6 +1143,7 @@
     return WORLDS[state.worldKey];
   }
   function currentVariant() {
+    if (state.worldKey === "choosey") return null;
     return variantFor(state.ruleKey, state.failKey, collapseOn);
   }
   function tileAt(x, y) {
@@ -1030,7 +1270,7 @@
     setTimeout(() => els.number.classList.remove(cls), 450);
   }
   function deltaGlyph(ev) {
-    if (!ev.valid) return "\u2715 invalid";
+    if (!ev.valid) return "\u2715 impossible";
     if (ev.delta > 0) return `\u2191 +${ev.delta}`;
     if (ev.delta < 0) return `\u2193 ${ev.delta}`;
     return "\u2014 \xB10";
@@ -1156,23 +1396,23 @@
     obs.textContent = "";
     obs.appendChild(line("", `You moved ${direction}.`));
     obs.appendChild(line("", ""));
-    obs.appendChild(line("flat", "Blocked \u2014 a hole. Consumed numbers cannot be moved onto."));
+    obs.appendChild(line("flat", "Blocked \u2014 that is a pit (a number that got eaten). Nothing can walk there."));
   }
   function verboseObservation(move) {
     const frag = document.createDocumentFragment();
     frag.appendChild(line("", `You moved ${move.direction}.`));
     frag.appendChild(line("", ""));
-    frag.appendChild(line("", "SUPERPOSITION"));
+    frag.appendChild(line("", "WHAT HAPPENED"));
     frag.appendChild(line("", ""));
     frag.appendChild(line("", `${fmtNumber(move.oldNumber)}  ${move.destinationTile}`));
-    frag.appendChild(line("", `Pending: ${move.pendingAtEntry === null ? "\u2014" : move.pendingAtEntry}`));
-    frag.appendChild(line("", `Armed: ${move.carriedAtEntry ?? "\u2014"}`));
-    frag.appendChild(line("", `Effect: ${move.effect.kind}${move.effect.kind === "opswap" ? ` (drops ${move.effect.dropped})` : ""}`));
-    frag.appendChild(line("", `Result: ${move.valid ? fmtNumber(move.result) : "INVALID"}`));
-    const deltaNote = move.valid ? `  (\u0394 ${move.delta > 0 ? "+" : ""}${move.delta})` : "";
+    frag.appendChild(line("", `Held number: ${move.pendingAtEntry === null ? "\u2014" : move.pendingAtEntry}`));
+    frag.appendChild(line("", `Carrying: ${move.carriedAtEntry ?? "\u2014"}`));
+    frag.appendChild(line("", `Board change: ${move.effect.kind}${move.effect.kind === "opswap" ? ` (drops ${move.effect.dropped})` : ""}`));
+    frag.appendChild(line("", `Your number now: ${move.valid ? fmtNumber(move.result) : "impossible"}`));
+    const deltaNote = move.valid ? `  (by ${move.delta > 0 ? "+" : ""}${move.delta})` : "";
     frag.appendChild(line(
       move.valid ? statusClass(move) : "down",
-      `Number went UP: ${move.valid ? move.wentUp ? "YES" : "NO" : "\u2014"}${deltaNote}`
+      `Did your number get bigger? ${move.valid ? move.wentUp ? "YES" : "NO" : "\u2014"}${deltaNote}`
     ));
     return frag;
   }
@@ -1198,27 +1438,45 @@
   }
   function showRunOver(ev) {
     const frag = document.createDocumentFragment();
-    frag.appendChild(line("over", `RUN OVER \u2014 ${ev.failReason}.`));
+    frag.appendChild(line("over", `The run ends \u2014 ${ev.failReason}.`));
     const survived = Math.max(0, ev.turn - 1);
-    frag.appendChild(line("", `Died on move ${ev.turn}, survived ${survived} move${survived === 1 ? "" : "s"}, final Number ${fmtNumber(state.number)}.`));
-    frag.appendChild(line("", IS_TOUCH ? "Tap the grid (or R) to restart." : "Press R to restart."));
+    frag.appendChild(line("", `You lasted ${survived} move${survived === 1 ? "" : "s"}; your number finished at ${fmtNumber(state.number)}.`));
+    frag.appendChild(line("", IS_TOUCH ? "Tap the grid (or R) to start again." : "Press R to start again."));
     return frag;
   }
   function renderStatus() {
     els.number.textContent = fmtNumber(state.number);
     els.worldName.textContent = world().name;
     els.position.textContent = `${state.pos.x},${state.pos.y}`;
+    const choosey = state.worldKey === "choosey";
     if (els.variantSub) {
-      const v = currentVariant();
-      els.variantSub.textContent = v ? `${v.name} \u2014 ${v.tagline}` : `custom \u2014 ${state.ruleKey} \xD7 ${state.failKey}`;
-      document.title = v ? `NUMBER UP \u2014 ${v.name}` : "NUMBER UP \u2014 custom";
+      if (choosey) {
+        els.variantSub.textContent = "Choosey \u2014 you call the rules \xB7 tick them under the board";
+        document.title = "NUMBER UP \u2014 Choosey";
+      } else {
+        const v = currentVariant();
+        els.variantSub.textContent = v ? `${v.name} \u2014 ${v.tagline}` : `custom \u2014 ${state.ruleKey} \xD7 ${state.failKey}`;
+        document.title = v ? `NUMBER UP \u2014 ${v.name}` : "NUMBER UP \u2014 custom";
+      }
     }
-    els.ruleLabel.textContent = `${state.ruleKey} (${state.engine.rule.name})`;
-    els.failLabel.textContent = `${state.failKey} (${state.engine.failure.name})`;
-    els.worldLabel.textContent = `${state.worldKey} \u2014 ${world().name}${collapseOn ? " +collapse" : ""}`;
+    els.ruleLabel.textContent = choosey ? `choosey (${rulesJoined(state.chooseyChecks.rules)})` : `${state.ruleKey} \u2014 ${RULE_SHORT[state.ruleKey]}`;
+    els.failLabel.textContent = choosey ? `choosey (${failsJoined(state.chooseyChecks.fails)})` : `${state.failKey} \u2014 ${FAILURE_SHORT[state.failKey]}`;
+    els.worldLabel.textContent = `${state.worldKey} \u2014 ${world().name}${collapseOn ? " + tiles-vanish" : ""}`;
+    syncRulesNow();
     const issueUrl = issueHref();
     const issueLink = document.getElementById("feedback-issue");
     if (issueLink instanceof HTMLAnchorElement) issueLink.href = issueUrl;
+  }
+  function syncRulesNow() {
+    const box = document.getElementById("rules-now");
+    if (!box) return;
+    const choosey = state.worldKey === "choosey";
+    box.textContent = "";
+    const touch = choosey ? rulesJoined(state.chooseyChecks.rules) : RULE_LONG[state.ruleKey];
+    const ends = choosey ? failsJoined(state.chooseyChecks.fails) : FAILURE_LONG[state.failKey];
+    box.appendChild(line("", `Touching a tile here: ${touch}`));
+    box.appendChild(line("", `The run ends when: ${ends}`));
+    box.appendChild(line("", `Board: ${collapseOn ? COLLAPSE_LONG : "Tiles stay put."}`));
   }
   function issueHref() {
     const dump = formatRunDump(runContext(), state.engine.history, fromLog);
@@ -1257,16 +1515,20 @@ What happened / what should have happened:
     historyPre.textContent = rows.join("\n");
   }
   function variantLabel() {
+    if (state.worldKey === "choosey") {
+      return `Choosey (touch: ${state.chooseyChecks.rules.join("+") || "none"} \xB7 run-ender: ${state.chooseyChecks.fails.join("+") || "none"}${collapseOn ? " \xB7 tiles vanish" : ""})`;
+    }
     const v = currentVariant();
     if (v) return `${v.name} (${v.id})`;
     return collapseOn ? `custom \u2014 ${state.ruleKey} \xD7 ${state.failKey} + collapse` : `custom \u2014 ${state.ruleKey} \xD7 ${state.failKey}`;
   }
   function runContext() {
     const v = currentVariant();
+    const choosey = state.worldKey === "choosey";
     return {
-      ruleKey: state.ruleKey,
+      ruleKey: choosey ? "choosey" : state.ruleKey,
       ruleName: state.engine.rule.name,
-      failKey: state.failKey,
+      failKey: choosey ? "choosey" : state.failKey,
       failName: state.engine.failure.name,
       worldKey: state.worldKey,
       worldName: world().name,
@@ -1290,7 +1552,8 @@ What happened / what should have happened:
       els.noteMeta.textContent = [
         `NUMBER UP v${APP_VERSION}`,
         `Variant: ${ctx.variantLabel}${v?.updated !== void 0 ? ` (updated ${v.updated})` : ""}`,
-        `Rule ${ctx.ruleKey} \xB7 fail ${ctx.failKey} \xB7 world ${ctx.worldKey}${ctx.seed === null ? "" : ` seed ${ctx.seed}`}${collapseOn ? " \xB7 collapse-to-floor" : ""}`,
+        `Rule ${ctx.ruleKey} \xB7 fail ${ctx.failKey} \xB7 world ${ctx.worldKey}${ctx.seed === null ? "" : ` seed ${ctx.seed}`}${collapseOn ? " \xB7 tiles vanish" : ""}`,
+        state.worldKey === "choosey" ? `Choosey ticks \u2014 touch: ${state.chooseyChecks.rules.join("+") || "none"} \xB7 run-ender: ${state.chooseyChecks.fails.join("+") || "none"}` : "",
         IS_HEX ? "Layout hex (pointy-top odd-r, 6 neighbours) \u2014 \u2190\u2192/AD = W E \xB7 Q/E = NW/NE \xB7 Z/C = SW/SE \xB7 numpad 7/9/1/3 diagonals \xB7 swipe snaps to nearest of 6 (straight up/down \u2192 NE/SE)" : "Layout square (4 neighbours) \u2014 arrows / WASD / numpad \xB7 swipe dominant axis",
         `URL: ${ctx.url}`,
         `Pending: ${state.engine.pending === null ? "\u2014" : state.engine.pending}`,
@@ -1354,7 +1617,7 @@ What happened / what should have happened:
       obs.textContent = "";
       obs.appendChild(line("", `You moved ${name.toUpperCase()}.`));
       obs.appendChild(line("", ""));
-      obs.appendChild(line("flat", IS_TOUCH ? "Run is over \u2014 tap the grid to restart." : "Run is over \u2014 press R to restart."));
+      obs.appendChild(line("flat", IS_TOUCH ? "The run is over \u2014 tap the grid to start again." : "The run is over \u2014 press R to start again."));
       return;
     }
     const next = lat.step(state.pos.x, state.pos.y, name);
@@ -1417,10 +1680,12 @@ What happened / what should have happened:
     state.matter.clear();
     buildGrid();
     syncUrl();
+    syncChooseyPanel();
     render();
     const v = currentVariant();
     const variantNote = v ? ` Variant ${v.name}.` : "";
-    els.observation.textContent = message || `World ${state.worldKey} \u2014 ${world().name}.${variantNote} Number = 0.${movementNote()}`;
+    const openLine = state.worldKey === "choosey" ? `World ${state.worldKey} \u2014 ${world().name} Touch rules ticked: ${rulesJoined(state.chooseyChecks.rules)}. Run-ender ticked: ${failsJoined(state.chooseyChecks.fails)}. The boxes under the board change these. Number = 0.${movementNote()}` : `World ${state.worldKey} \u2014 ${world().name}.${variantNote} Number = 0.${movementNote()}`;
+    els.observation.textContent = message || openLine;
     if (state.debug) renderNotebook();
     playCue("start");
   }
@@ -1430,12 +1695,22 @@ What happened / what should have happened:
       p.set("world", state.worldKey);
       if (state.worldKey === "gen") p.set("seed", String(state.genSeed));
       else p.delete("seed");
-      const v = currentVariant();
-      if (v) p.set("variant", v.id);
-      else p.delete("variant");
-      p.set("rule", state.ruleKey);
-      p.set("fail", state.failKey);
-      if (collapseOn !== (v?.collapse ?? false)) p.set("collapse", collapseOn ? "1" : "0");
+      if (state.worldKey === "choosey") {
+        p.set("crules", state.chooseyChecks.rules.join(","));
+        p.set("cfails", state.chooseyChecks.fails.join(","));
+        p.delete("rule");
+        p.delete("fail");
+        p.delete("variant");
+      } else {
+        p.delete("crules");
+        p.delete("cfails");
+        const v = currentVariant();
+        if (v) p.set("variant", v.id);
+        else p.delete("variant");
+        p.set("rule", state.ruleKey);
+        p.set("fail", state.failKey);
+      }
+      if (collapseOn !== (currentVariant()?.collapse ?? false)) p.set("collapse", collapseOn ? "1" : "0");
       else p.delete("collapse");
       if (IS_HEX) p.set("layout", "hex");
       else p.delete("layout");
@@ -1461,21 +1736,119 @@ What happened / what should have happened:
     restart(`World gen \u2014 ${world().name}. Number = 0.`);
   }
   function nextRule() {
+    if (state.worldKey === "choosey") {
+      showChooseyNote("Choosey \u2014 the boxes under the board pick the touch rules here.");
+      return;
+    }
     if (!IS_HEX && !confirmWipe("rule")) return;
     state.ruleKey = cycle(["replace", "add", "eval", "relay"], state.ruleKey);
-    restart(`Collision rule \u2192 ${state.ruleKey} (${state.engine.rule.name}). Number = 0.`);
+    restart(`Touch rule \u2192 ${state.ruleKey} \u2014 ${RULE_SHORT[state.ruleKey]}. Number = 0.`);
   }
   function nextFailure() {
+    if (state.worldKey === "choosey") {
+      showChooseyNote("Choosey \u2014 the boxes under the board pick the run-ender here.");
+      return;
+    }
     if (!IS_HEX && !confirmWipe("fail")) return;
     state.failKey = cycle(["notUp", "down", "none"], state.failKey);
-    restart(`Failure rule \u2192 ${state.failKey} (${state.engine.failure.name}). Number = 0.`);
+    restart(`Run-ender \u2192 ${state.failKey} \u2014 ${FAILURE_SHORT[state.failKey]}. Number = 0.`);
   }
   function toggleCollapse() {
     collapseOn = !collapseOn;
-    restart(`Collapse-to-floor ${collapseOn ? "ON \u2014 tiles burn out behind you" : "OFF"}. Number = 0.`);
+    syncChooseyPanel();
+    restart(`Tiles vanishing behind you ${collapseOn ? "ON \u2014 after you step on a tile it is gone" : "OFF"}. Number = 0.`);
+  }
+  function showChooseyNote(text) {
+    const obs = els.observation;
+    obs.textContent = "";
+    obs.appendChild(line("", text));
   }
   function applyEngine() {
-    state.engine = createEngine(state.ruleKey, state.failKey);
+    if (state.worldKey === "choosey") {
+      state.engine = createChooseyEngine(state.chooseyChecks);
+    } else {
+      state.engine = createEngine(state.ruleKey, state.failKey);
+    }
+  }
+  var CHOOSEY_RULE_ORDER = ["replace", "add", "eval", "relay"];
+  var CHOOSEY_ENDER_ORDER = ["notUp", "down"];
+  function chooseyRow(kind, key, title, blurb) {
+    const label = document.createElement("label");
+    label.className = "choosey-row";
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.dataset.kind = kind;
+    box.dataset.key = key;
+    label.appendChild(box);
+    const text = document.createElement("span");
+    const bold = document.createElement("b");
+    bold.textContent = `${title} \u2014 `;
+    text.appendChild(bold);
+    text.appendChild(document.createTextNode(blurb));
+    label.appendChild(text);
+    return label;
+  }
+  function buildChooseyPanel() {
+    const host = document.getElementById("choosey-list");
+    if (!host) return;
+    const touch = document.createElement("div");
+    touch.className = "choosey-group";
+    touch.appendChild(line("choosey-group-label", "Touch rules \u2014 ticked rules try from the top; the first that can handle the tile does it."));
+    for (const key of CHOOSEY_RULE_ORDER) {
+      touch.appendChild(chooseyRow("rule", key, key, RULE_LONG[key]));
+    }
+    host.appendChild(touch);
+    const enders = document.createElement("div");
+    enders.className = "choosey-group";
+    enders.appendChild(line("choosey-group-label", "Run-enders \u2014 any ticked one can end the run (untick both and nothing can)."));
+    for (const key of CHOOSEY_ENDER_ORDER) {
+      enders.appendChild(chooseyRow("ender", key, key, FAILURE_LONG[key]));
+    }
+    host.appendChild(enders);
+    const board = document.createElement("div");
+    board.className = "choosey-group";
+    board.appendChild(line("choosey-group-label", "Board"));
+    board.appendChild(chooseyRow("board", "vanish", "vanish", COLLAPSE_LONG));
+    host.appendChild(board);
+    host.addEventListener("change", onChooseyChange);
+  }
+  function onChooseyChange(e) {
+    const target = e.target;
+    if (!(target instanceof HTMLInputElement) || !target.dataset.kind) {
+      syncChooseyPanel();
+      return;
+    }
+    const kind = target.dataset.kind;
+    const proceed = state.engine.turn === 0 || confirmWipe("rule");
+    if (!proceed) {
+      syncChooseyPanel();
+      return;
+    }
+    if (kind === "board") {
+      collapseOn = target.checked;
+    } else {
+      const host = document.getElementById("choosey-list");
+      const checked = (selector) => Array.from(host?.querySelectorAll(selector) ?? []).filter((b) => b instanceof HTMLInputElement && b.checked).map((b) => b.dataset.key ?? "");
+      if (kind === "rule") state.chooseyChecks.rules = checked('input[data-kind="rule"]');
+      else state.chooseyChecks.fails = checked('input[data-kind="ender"]');
+    }
+    restart(
+      `Choosey \u2014 touch rules: ${rulesJoined(state.chooseyChecks.rules)} \xB7 run-ender: ${failsJoined(state.chooseyChecks.fails)}${collapseOn ? " \xB7 tiles vanish" : ""}. Number = 0.`
+    );
+  }
+  function syncChooseyPanel() {
+    const panel = document.getElementById("choosey");
+    if (!panel) return;
+    panel.hidden = state.worldKey !== "choosey";
+    if (panel.hidden) return;
+    const set = (kind, keys) => {
+      for (const box of panel.querySelectorAll(`input[data-kind="${kind}"]`)) {
+        if (box instanceof HTMLInputElement) box.checked = keys.includes(box.dataset.key ?? "");
+      }
+    };
+    set("rule", state.chooseyChecks.rules);
+    set("ender", state.chooseyChecks.fails);
+    set("board", collapseOn ? ["vanish"] : []);
   }
   var MOVE_KEYS = IS_HEX ? {
     ArrowLeft: "W",
@@ -1520,8 +1893,8 @@ What happened / what should have happened:
   };
   function confirmWipe(action) {
     if (state.engine.turn === 0) return true;
-    const label = action === "rule" ? "collision rule" : "failure rule";
-    return window.confirm(`Switch ${label}? This restarts the run (${state.engine.turn} moves in).`);
+    const label = action === "rule" ? "touch rule" : "run-ender";
+    return window.confirm(`Change the ${label}? This starts the run over (${state.engine.turn} moves in).`);
   }
   var HEX_NO_NS_KEYS = /* @__PURE__ */ new Set(["ArrowUp", "ArrowDown", "w", "s", "W", "S", "Numpad8", "Numpad2", "8", "2"]);
   function showHexNoNorthSouth() {
@@ -1543,6 +1916,12 @@ What happened / what should have happened:
       showObservation(last, last.failed ? showRunOver(last) : null);
     }
     syncUrl();
+  }
+  function toggleRulesReference() {
+    const details = document.getElementById("rules-details");
+    if (!(details instanceof HTMLDetailsElement)) return;
+    details.open = !details.open;
+    document.querySelector('#help [data-action="rules"]')?.classList.toggle("on", details.open);
   }
   document.addEventListener("keydown", (e) => {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -1567,6 +1946,8 @@ What happened / what should have happened:
       const btn = document.querySelector('#help [data-action="sound"]');
       if (btn instanceof HTMLElement) btn.classList.toggle("on", on);
       if (on) playCue("start");
+    } else if (k === "l") {
+      toggleRulesReference();
     } else if (k === "n") {
       nextWorld();
     } else if (k === "g") {
@@ -1590,6 +1971,7 @@ What happened / what should have happened:
     const action = btn.getAttribute("data-action");
     if (action === "restart") restart();
     else if (action === "debug") toggleDebug();
+    else if (action === "rules") toggleRulesReference();
     else if (action === "catalogue") location.href = "index.html";
     else if (action === "world") nextWorld();
     else if (action === "worldgen") nextGenerated();
@@ -1653,6 +2035,9 @@ What happened / what should have happened:
   }
   if (state.debug) document.body.classList.add("debug");
   document.querySelector('#help [data-action="sound"]')?.classList.toggle("on", sound.enabled);
+  var rulesRefHost = document.getElementById("rules-ref");
+  if (rulesRefHost) renderRulesReference(rulesRefHost, (v) => `play.html?variant=${v.id}`);
+  buildChooseyPanel();
   restart();
 })();
 //# sourceMappingURL=play.js.map

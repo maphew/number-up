@@ -44,8 +44,18 @@
   <svg id="grid" viewBox="0 0 500 500" role="img" aria-label="Number Up grid"></svg>
 </main>
 
+<section id="choosey" hidden aria-label="Choosey — tick the rules for this board">
+  <p class="choosey-hint">Choosey — tick the rules you want on this board. Changing a box starts the run over.</p>
+  <div id="choosey-list"></div>
+</section>
+
 <section id="messages">
   <div id="observation" aria-live="polite">NUMBER UP. Move with arrow keys, WASD, or numpad.</div>
+  <details id="rules-details" class="rules-ref">
+    <summary>what do the rules do here? — the plain-words reference</summary>
+    <div id="rules-now"></div>
+    <div id="rules-ref"></div>
+  </details>
   <section id="notebook" class="debug-only" aria-label="Lab notebook">
     <pre id="note-meta"></pre>
     <div id="note-totals"></div>
@@ -59,13 +69,14 @@
   </div>
   <div id="help">
     <span class="key-note" id="key-note">arrows / swipe move</span>
-    <button type="button" data-action="restart" aria-label="Restart run"><kbd>R</kbd> restart</button>
-    <button type="button" data-action="debug" aria-label="Toggle debug"><kbd>/</kbd> debug</button>
+    <button type="button" data-action="restart" aria-label="Restart run"><kbd>R</kbd> again</button>
+    <button type="button" data-action="debug" aria-label="Toggle debug"><kbd>/</kbd> notes</button>
+    <button type="button" data-action="rules" aria-label="Toggle the rules reference"><kbd>L</kbd> rules</button>
     <button type="button" data-action="world" aria-label="Next world"><kbd>N</kbd> world</button>
     <button type="button" data-action="worldgen" aria-label="Generate new world"><kbd>G</kbd> new world</button>
-    <button type="button" data-action="rule" aria-label="Cycle rule"><kbd>C</kbd> rule</button>
-    <button type="button" data-action="fail" aria-label="Cycle fail rule"><kbd>F</kbd> fail-rule</button>
-    <button type="button" data-action="collapse" aria-label="Toggle collapse-to-floor"><kbd>X</kbd> collapse</button>
+    <button type="button" data-action="rule" aria-label="Cycle rule"><kbd>C</kbd> touch rule</button>
+    <button type="button" data-action="fail" aria-label="Cycle fail rule"><kbd>F</kbd> run-ender</button>
+    <button type="button" data-action="collapse" aria-label="Toggle collapse-to-floor"><kbd>X</kbd> vanish</button>
     <button type="button" data-action="sound" aria-label="Toggle sound cues"><kbd>M</kbd> sound</button>
     <button type="button" data-action="feedback" aria-label="Email feedback"><kbd>@</kbd> feedback</button>
     <button type="button" data-action="catalogue" aria-label="Back to the catalogue"><kbd>Esc</kbd> home</button>
@@ -75,6 +86,6 @@
 
 <div id="vignette" aria-hidden="true"></div>
 
-<script src="dist/play.js?v=0.2.0"></script>
+<script src="dist/play.js?v=0.3.0"></script>
 </body>
 </html>

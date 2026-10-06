@@ -68,11 +68,26 @@ export const WORLDS = {
       ['3', '×', '8', '−', '2'],
     ],
   },
+  // num-dn2: the rule-composition lab — the tiles offer every tile kind
+  // (flat pairs, every sign, a 0 sitting on a ÷ trap), but which rules apply
+  // is decided by the ticked checkbox list under the board (play.ts wires
+  // the panel; the engine composes them first-applicable-wins).
+  choosey: {
+    name: 'Choosey — you pick the rules',
+    updated: '2026-10-05 23:00 PDT',
+    rows: [
+      ['+', '+', '+', '+', '+'],
+      ['+', '6', '9', '9', '×'],
+      ['+', '5', '.', '7', '+'],
+      ['6', '×', '6', '0', '÷'],
+      ['+', '+', '−', '+', '8'],
+    ],
+  },
 } satisfies Record<string, World>;
 
 export type WorldKey = keyof typeof WORLDS;
 
-export const WORLD_ORDER: WorldKey[] = ['full', 'a', 'b', 'c', 'd'];
+export const WORLD_ORDER: WorldKey[] = ['full', 'a', 'b', 'c', 'd', 'choosey'];
 
 export const COLLAPSED_TILE = 'floor';
 

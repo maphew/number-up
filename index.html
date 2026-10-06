@@ -9,18 +9,23 @@
 <body class="gallery">
 <header id="gallery-head">
   <h1>NUMBER UP</h1>
-  <p class="intro">A design laboratory. You are a dot, and the dot is the current Number. Moving is a superposition event: your Number and the destination tile interact, and a new Number emerges. What that interaction means is exactly what each variant below proposes differently. Pick one and feel it.</p>
+  <p class="intro">You are a dot, and the dot is your number. Step on a tile and your number meets what's there — something new comes out. Each card below is one idea for what that meeting should mean, and what should be able to stop you. Pick one and feel it.</p>
 </header>
 
 <noscript><p class="intro">The catalogue needs JavaScript; the game itself is at <a href="play.html">play.html</a>.</p></noscript>
 
 <main id="gallery"></main>
 
+<section id="rules-reference" aria-label="Rules reference">
+  <h2 class="group-label">the rules, in plain words</h2>
+  <div id="rules-ref"></div>
+</section>
+
 <footer id="gallery-foot">
-  <p>Worlds are switchable while playing (<kbd>N</kbd> cycles hand-authored maps, <kbd>G</kbd> generates a seeded one). Rules can also be cycled live with <kbd>C</kbd> and <kbd>F</kbd>, collapse-to-floor with <kbd>X</kbd>.</p>
+  <p>While playing: <kbd>N</kbd> cycles the hand-authored maps, <kbd>G</kbd> makes a fresh random one, <kbd>C</kbd>/<kbd>F</kbd> change the touch rule and the run-ender live, <kbd>X</kbd> makes tiles vanish behind you, <kbd>L</kbd> shows this reference inside the game.</p>
   <p><span id="app-version">v0.1.0</span> · <a href="mailto:maphew+number-up@gmail.com?subject=NUMBER%20UP%20feedback">feedback</a> · <a href="https://github.com/maphew/number-up">repo</a> · <a href="https://github.com/maphew/number-up/blob/main/_the_beginning.md">the plan</a></p>
 </footer>
 
-<script src="dist/gallery.js?v=0.2.0"></script>
+<script src="dist/gallery.js?v=0.3.0"></script>
 </body>
 </html>

@@ -1,6 +1,7 @@
-import { createEngine, FAILURE_RULES, isOperator, RULES, type FailureName, type MoveEvent, type RuleName } from './engine.ts';
+import { createChooseyEngine, createEngine, FAILURE_RULES, isOperator, RULES, type FailureName, type MoveEvent, type RuleName } from './engine.ts';
 import { createCollapseState, createMatterState, findStart, generateWorld, HOLE, WORLDS, WORLD_ORDER, type MatterState, type World, type WorldKey } from './world.ts';
 import { getVariant, variantFor } from './variants.ts';
+import { COLLAPSE_LONG, FAILURE_LONG, FAILURE_SHORT, RULE_LONG, RULE_SHORT, failsJoined, renderRulesReference, rulesJoined } from './plain.ts';
 import { createHexLattice, createSquareLattice, type Lattice, type Pos } from './lattice.ts';
 import { formatMoveLog, formatRunDump, summariseRun, type RunContext } from './debug.ts';
 import { createSoundKit, type Signal } from './sound.ts';
@@ -20,6 +21,21 @@ function isKeyOf<T extends Record<string, unknown>>(pool: T, key: string): key i
 
 function pickKey<T extends Record<string, unknown>>(key: string | null, pool: T, fallback: keyof T & string): keyof T & string {
   return key !== null && isKeyOf(pool, key) ? key : fallback;
+}
+
+// comma-separated checkbox state → the ticked keys, verbatim order
+function pickChecks(param: string | null, pool: Record<string, unknown>, fallback: string[]): string[] {
+  if (param === null) return fallback;
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of param.split(',')) {
+    const key = raw.trim();
+    if (key && !seen.has(key) && isKeyOf(pool, key)) {
+      seen.add(key);
+      out.push(key);
+    }
+  }
+  return out;
 }
 
 function isWorldKey(key: string): key is WorldKey {
@@ -45,11 +61,22 @@ function resolveWorldKey(raw: string | null, variantWorld: WorldKey | undefined)
   return variantWorld ?? 'full';
 }
 
+// Choosey (num-dn2): the ticked checkbox state for this board. Defaults to the
+// classic pairing so the board plays immediately; the panel invites changes.
+function chooseyChecksAtStartup(): { rules: string[]; fails: string[] } {
+  if (resolveWorldKey(rawWorld, rawVariant?.world) !== 'choosey') return { rules: [], fails: [] };
+  return {
+    rules: pickChecks(params.get('crules'), RULES, rawVariant ? [rawVariant.rule] : ['eval']),
+    fails: pickChecks(params.get('cfails'), FAILURE_RULES, rawVariant ? [rawVariant.fail] : ['notUp']),
+  };
+}
+
 const state: {
   worldKey: PlayWorld;
   genSeed: number | null;
   ruleKey: RuleName;
   failKey: FailureName;
+  chooseyChecks: { rules: string[]; fails: string[] };
   debug: boolean;
   number: number;
   pos: Pos;
@@ -62,6 +89,7 @@ const state: {
   genSeed: null,
   ruleKey,
   failKey,
+  chooseyChecks: chooseyChecksAtStartup(),
   debug: params.get('debug') === '1',
   number: 0,
   pos: { x: 2, y: 2 },
@@ -132,6 +160,7 @@ function world(): World {
 }
 
 function currentVariant() {
+  if (state.worldKey === 'choosey') return null;
   return variantFor(state.ruleKey, state.failKey, collapseOn);
 }
 
@@ -281,7 +310,7 @@ function flashStatus(cls: string) {
 }
 
 function deltaGlyph(ev: MoveEvent): string {
-  if (!ev.valid) return '✕ invalid';
+  if (!ev.valid) return '✕ impossible';
   if (ev.delta > 0) return `↑ +${ev.delta}`;
   if (ev.delta < 0) return `↓ ${ev.delta}`;
   return '— ±0';
@@ -430,24 +459,24 @@ function showBlockedHole(direction: string) {
   obs.textContent = '';
   obs.appendChild(line('', `You moved ${direction}.`));
   obs.appendChild(line('', ''));
-  obs.appendChild(line('flat', 'Blocked — a hole. Consumed numbers cannot be moved onto.'));
+  obs.appendChild(line('flat', 'Blocked — that is a pit (a number that got eaten). Nothing can walk there.'));
 }
 
 function verboseObservation(move: MoveEvent): DocumentFragment {
   const frag = document.createDocumentFragment();
   frag.appendChild(line('', `You moved ${move.direction}.`));
   frag.appendChild(line('', ''));
-  frag.appendChild(line('', 'SUPERPOSITION'));
+  frag.appendChild(line('', 'WHAT HAPPENED'));
   frag.appendChild(line('', ''));
   frag.appendChild(line('', `${fmtNumber(move.oldNumber)}  ${move.destinationTile}`));
-  frag.appendChild(line('', `Pending: ${move.pendingAtEntry === null ? '—' : move.pendingAtEntry}`));
-  frag.appendChild(line('', `Armed: ${move.carriedAtEntry ?? '—'}`));
-  frag.appendChild(line('', `Effect: ${move.effect.kind}${move.effect.kind === 'opswap' ? ` (drops ${move.effect.dropped})` : ''}`));
-  frag.appendChild(line('', `Result: ${move.valid ? fmtNumber(move.result) : 'INVALID'}`));
-  const deltaNote = move.valid ? `  (Δ ${move.delta > 0 ? '+' : ''}${move.delta})` : '';
+  frag.appendChild(line('', `Held number: ${move.pendingAtEntry === null ? '—' : move.pendingAtEntry}`));
+  frag.appendChild(line('', `Carrying: ${move.carriedAtEntry ?? '—'}`));
+  frag.appendChild(line('', `Board change: ${move.effect.kind}${move.effect.kind === 'opswap' ? ` (drops ${move.effect.dropped})` : ''}`));
+  frag.appendChild(line('', `Your number now: ${move.valid ? fmtNumber(move.result) : 'impossible'}`));
+  const deltaNote = move.valid ? `  (by ${move.delta > 0 ? '+' : ''}${move.delta})` : '';
   frag.appendChild(line(
     move.valid ? statusClass(move) : 'down',
-    `Number went UP: ${move.valid ? (move.wentUp ? 'YES' : 'NO') : '—'}${deltaNote}`
+    `Did your number get bigger? ${move.valid ? (move.wentUp ? 'YES' : 'NO') : '—'}${deltaNote}`
   ));
   return frag;
 }
@@ -476,10 +505,10 @@ function showObservation(move: MoveEvent, extra?: DocumentFragment | null) {
 
 function showRunOver(ev: MoveEvent): DocumentFragment {
   const frag = document.createDocumentFragment();
-  frag.appendChild(line('over', `RUN OVER — ${ev.failReason}.`));
+  frag.appendChild(line('over', `The run ends — ${ev.failReason}.`));
   const survived = Math.max(0, ev.turn - 1);
-  frag.appendChild(line('', `Died on move ${ev.turn}, survived ${survived} move${survived === 1 ? '' : 's'}, final Number ${fmtNumber(state.number)}.`));
-  frag.appendChild(line('', IS_TOUCH ? 'Tap the grid (or R) to restart.' : 'Press R to restart.'));
+  frag.appendChild(line('', `You lasted ${survived} move${survived === 1 ? '' : 's'}; your number finished at ${fmtNumber(state.number)}.`));
+  frag.appendChild(line('', IS_TOUCH ? 'Tap the grid (or R) to start again.' : 'Press R to start again.'));
   return frag;
 }
 
@@ -487,17 +516,41 @@ function renderStatus() {
   els.number.textContent = fmtNumber(state.number);
   els.worldName.textContent = world().name;
   els.position.textContent = `${state.pos.x},${state.pos.y}`;
+  const choosey = state.worldKey === 'choosey';
   if (els.variantSub) {
-    const v = currentVariant();
-    els.variantSub.textContent = v ? `${v.name} — ${v.tagline}` : `custom — ${state.ruleKey} × ${state.failKey}`;
-    document.title = v ? `NUMBER UP — ${v.name}` : 'NUMBER UP — custom';
+    if (choosey) {
+      els.variantSub.textContent = 'Choosey — you call the rules · tick them under the board';
+      document.title = 'NUMBER UP — Choosey';
+    } else {
+      const v = currentVariant();
+      els.variantSub.textContent = v ? `${v.name} — ${v.tagline}` : `custom — ${state.ruleKey} × ${state.failKey}`;
+      document.title = v ? `NUMBER UP — ${v.name}` : 'NUMBER UP — custom';
+    }
   }
-  els.ruleLabel.textContent = `${state.ruleKey} (${state.engine.rule.name})`;
-  els.failLabel.textContent = `${state.failKey} (${state.engine.failure.name})`;
-  els.worldLabel.textContent = `${state.worldKey} — ${world().name}${collapseOn ? ' +collapse' : ''}`;
+  els.ruleLabel.textContent = choosey
+    ? `choosey (${rulesJoined(state.chooseyChecks.rules)})`
+    : `${state.ruleKey} — ${RULE_SHORT[state.ruleKey]}`;
+  els.failLabel.textContent = choosey
+    ? `choosey (${failsJoined(state.chooseyChecks.fails)})`
+    : `${state.failKey} — ${FAILURE_SHORT[state.failKey]}`;
+  els.worldLabel.textContent = `${state.worldKey} — ${world().name}${collapseOn ? ' + tiles-vanish' : ''}`;
+  syncRulesNow();
   const issueUrl = issueHref();
   const issueLink = document.getElementById('feedback-issue');
   if (issueLink instanceof HTMLAnchorElement) issueLink.href = issueUrl;
+}
+
+// The "you are playing" line inside the rules reference details.
+function syncRulesNow() {
+  const box = document.getElementById('rules-now');
+  if (!box) return;
+  const choosey = state.worldKey === 'choosey';
+  box.textContent = '';
+  const touch = choosey ? rulesJoined(state.chooseyChecks.rules) : RULE_LONG[state.ruleKey];
+  const ends = choosey ? failsJoined(state.chooseyChecks.fails) : FAILURE_LONG[state.failKey];
+  box.appendChild(line('', `Touching a tile here: ${touch}`));
+  box.appendChild(line('', `The run ends when: ${ends}`));
+  box.appendChild(line('', `Board: ${collapseOn ? COLLAPSE_LONG : 'Tiles stay put.'}`));
 }
 
 function issueHref(): string {
@@ -541,6 +594,9 @@ function renderHistory() {
 }
 
 function variantLabel(): string {
+  if (state.worldKey === 'choosey') {
+    return `Choosey (touch: ${state.chooseyChecks.rules.join('+') || 'none'} · run-ender: ${state.chooseyChecks.fails.join('+') || 'none'}${collapseOn ? ' · tiles vanish' : ''})`;
+  }
   const v = currentVariant();
   if (v) return `${v.name} (${v.id})`;
   return collapseOn ? `custom — ${state.ruleKey} × ${state.failKey} + collapse` : `custom — ${state.ruleKey} × ${state.failKey}`;
@@ -548,10 +604,11 @@ function variantLabel(): string {
 
 function runContext(): RunContext {
   const v = currentVariant();
+  const choosey = state.worldKey === 'choosey';
   return {
-    ruleKey: state.ruleKey,
+    ruleKey: choosey ? 'choosey' : state.ruleKey,
     ruleName: state.engine.rule.name,
-    failKey: state.failKey,
+    failKey: choosey ? 'choosey' : state.failKey,
     failName: state.engine.failure.name,
     worldKey: state.worldKey,
     worldName: world().name,
@@ -576,7 +633,10 @@ function renderNotebook() {
     els.noteMeta.textContent = [
       `NUMBER UP v${APP_VERSION}`,
       `Variant: ${ctx.variantLabel}${v?.updated !== undefined ? ` (updated ${v.updated})` : ''}`,
-      `Rule ${ctx.ruleKey} · fail ${ctx.failKey} · world ${ctx.worldKey}${ctx.seed === null ? '' : ` seed ${ctx.seed}`}${collapseOn ? ' · collapse-to-floor' : ''}`,
+      `Rule ${ctx.ruleKey} · fail ${ctx.failKey} · world ${ctx.worldKey}${ctx.seed === null ? '' : ` seed ${ctx.seed}`}${collapseOn ? ' · tiles vanish' : ''}`,
+      state.worldKey === 'choosey'
+        ? `Choosey ticks — touch: ${state.chooseyChecks.rules.join('+') || 'none'} · run-ender: ${state.chooseyChecks.fails.join('+') || 'none'}`
+        : '',
       IS_HEX
         ? 'Layout hex (pointy-top odd-r, 6 neighbours) — ←→/AD = W E · Q/E = NW/NE · Z/C = SW/SE · numpad 7/9/1/3 diagonals · swipe snaps to nearest of 6 (straight up/down → NE/SE)'
         : 'Layout square (4 neighbours) — arrows / WASD / numpad · swipe dominant axis',
@@ -644,7 +704,7 @@ function tryMove(name: string) {
     obs.textContent = '';
     obs.appendChild(line('', `You moved ${name.toUpperCase()}.`));
     obs.appendChild(line('', ''));
-    obs.appendChild(line('flat', IS_TOUCH ? 'Run is over — tap the grid to restart.' : 'Run is over — press R to restart.'));
+    obs.appendChild(line('flat', IS_TOUCH ? 'The run is over — tap the grid to start again.' : 'The run is over — press R to start again.'));
     return;
   }
   const next = lat.step(state.pos.x, state.pos.y, name);
@@ -713,10 +773,15 @@ function restart(message?: string) {
   state.matter.clear();
   buildGrid();
   syncUrl();
+  syncChooseyPanel();
   render();
   const v = currentVariant();
   const variantNote = v ? ` Variant ${v.name}.` : '';
-  els.observation.textContent = message || `World ${state.worldKey} — ${world().name}.${variantNote} Number = 0.${movementNote()}`;
+  const openLine =
+    state.worldKey === 'choosey'
+      ? `World ${state.worldKey} — ${world().name} Touch rules ticked: ${rulesJoined(state.chooseyChecks.rules)}. Run-ender ticked: ${failsJoined(state.chooseyChecks.fails)}. The boxes under the board change these. Number = 0.${movementNote()}`
+      : `World ${state.worldKey} — ${world().name}.${variantNote} Number = 0.${movementNote()}`;
+  els.observation.textContent = message || openLine;
   if (state.debug) renderNotebook();
   playCue('start');
 }
@@ -727,12 +792,23 @@ function syncUrl() {
     p.set('world', state.worldKey);
     if (state.worldKey === 'gen') p.set('seed', String(state.genSeed));
     else p.delete('seed');
-    const v = currentVariant();
-    if (v) p.set('variant', v.id);
-    else p.delete('variant');
-    p.set('rule', state.ruleKey);
-    p.set('fail', state.failKey);
-    if (collapseOn !== (v?.collapse ?? false)) p.set('collapse', collapseOn ? '1' : '0');
+    if (state.worldKey === 'choosey') {
+      // choosey carries its own ticked list; the single rule/fail params are noise here
+      p.set('crules', state.chooseyChecks.rules.join(','));
+      p.set('cfails', state.chooseyChecks.fails.join(','));
+      p.delete('rule');
+      p.delete('fail');
+      p.delete('variant');
+    } else {
+      p.delete('crules');
+      p.delete('cfails');
+      const v = currentVariant();
+      if (v) p.set('variant', v.id);
+      else p.delete('variant');
+      p.set('rule', state.ruleKey);
+      p.set('fail', state.failKey);
+    }
+    if (collapseOn !== (currentVariant()?.collapse ?? false)) p.set('collapse', collapseOn ? '1' : '0');
     else p.delete('collapse');
     if (IS_HEX) p.set('layout', 'hex');
     else p.delete('layout');
@@ -763,24 +839,134 @@ function nextGenerated() {
 }
 
 function nextRule() {
+  if (state.worldKey === 'choosey') {
+    showChooseyNote('Choosey — the boxes under the board pick the touch rules here.');
+    return;
+  }
   if (!IS_HEX && !confirmWipe('rule')) return;
   state.ruleKey = cycle(['replace', 'add', 'eval', 'relay'], state.ruleKey);
-  restart(`Collision rule → ${state.ruleKey} (${state.engine.rule.name}). Number = 0.`);
+  restart(`Touch rule → ${state.ruleKey} — ${RULE_SHORT[state.ruleKey]}. Number = 0.`);
 }
 
 function nextFailure() {
+  if (state.worldKey === 'choosey') {
+    showChooseyNote('Choosey — the boxes under the board pick the run-ender here.');
+    return;
+  }
   if (!IS_HEX && !confirmWipe('fail')) return;
   state.failKey = cycle(['notUp', 'down', 'none'], state.failKey);
-  restart(`Failure rule → ${state.failKey} (${state.engine.failure.name}). Number = 0.`);
+  restart(`Run-ender → ${state.failKey} — ${FAILURE_SHORT[state.failKey]}. Number = 0.`);
 }
 
 function toggleCollapse() {
   collapseOn = !collapseOn;
-  restart(`Collapse-to-floor ${collapseOn ? 'ON — tiles burn out behind you' : 'OFF'}. Number = 0.`);
+  syncChooseyPanel();
+  restart(`Tiles vanishing behind you ${collapseOn ? 'ON — after you step on a tile it is gone' : 'OFF'}. Number = 0.`);
+}
+
+function showChooseyNote(text: string) {
+  const obs = els.observation;
+  obs.textContent = '';
+  obs.appendChild(line('', text));
 }
 
 function applyEngine() {
-  state.engine = createEngine(state.ruleKey, state.failKey);
+  if (state.worldKey === 'choosey') {
+    state.engine = createChooseyEngine(state.chooseyChecks);
+  } else {
+    state.engine = createEngine(state.ruleKey, state.failKey);
+  }
+}
+
+// --- Choosey panel (num-dn2): the checkbox list under the board ---
+
+const CHOOSEY_RULE_ORDER: RuleName[] = ['replace', 'add', 'eval', 'relay'];
+const CHOOSEY_ENDER_ORDER: FailureName[] = ['notUp', 'down'];
+
+function chooseyRow(kind: 'rule' | 'ender' | 'board', key: string, title: string, blurb: string): HTMLLabelElement {
+  const label = document.createElement('label');
+  label.className = 'choosey-row';
+  const box = document.createElement('input');
+  box.type = 'checkbox';
+  box.dataset.kind = kind;
+  box.dataset.key = key;
+  label.appendChild(box);
+  const text = document.createElement('span');
+  const bold = document.createElement('b');
+  bold.textContent = `${title} — `;
+  text.appendChild(bold);
+  text.appendChild(document.createTextNode(blurb));
+  label.appendChild(text);
+  return label;
+}
+
+function buildChooseyPanel() {
+  const host = document.getElementById('choosey-list');
+  if (!host) return;
+  const touch = document.createElement('div');
+  touch.className = 'choosey-group';
+  touch.appendChild(line('choosey-group-label', 'Touch rules — ticked rules try from the top; the first that can handle the tile does it.'));
+  for (const key of CHOOSEY_RULE_ORDER) {
+    touch.appendChild(chooseyRow('rule', key, key, RULE_LONG[key]));
+  }
+  host.appendChild(touch);
+  const enders = document.createElement('div');
+  enders.className = 'choosey-group';
+  enders.appendChild(line('choosey-group-label', 'Run-enders — any ticked one can end the run (untick both and nothing can).'));
+  for (const key of CHOOSEY_ENDER_ORDER) {
+    enders.appendChild(chooseyRow('ender', key, key, FAILURE_LONG[key]));
+  }
+  host.appendChild(enders);
+  const board = document.createElement('div');
+  board.className = 'choosey-group';
+  board.appendChild(line('choosey-group-label', 'Board'));
+  board.appendChild(chooseyRow('board', 'vanish', 'vanish', COLLAPSE_LONG));
+  host.appendChild(board);
+  host.addEventListener('change', onChooseyChange);
+}
+
+function onChooseyChange(e: Event) {
+  const target = e.target;
+  if (!(target instanceof HTMLInputElement) || !target.dataset.kind) {
+    syncChooseyPanel();
+    return;
+  }
+  const kind = target.dataset.kind;
+  const proceed = state.engine.turn === 0 || confirmWipe('rule');
+  if (!proceed) {
+    syncChooseyPanel();
+    return;
+  }
+  if (kind === 'board') {
+    collapseOn = target.checked;
+  } else {
+    // read the whole group so the ticked order always matches the panel order
+    const host = document.getElementById('choosey-list');
+    const checked = (selector: string): string[] =>
+      Array.from(host?.querySelectorAll(selector) ?? [])
+        .filter((b): b is HTMLInputElement => b instanceof HTMLInputElement && b.checked)
+        .map((b) => b.dataset.key ?? '');
+    if (kind === 'rule') state.chooseyChecks.rules = checked('input[data-kind="rule"]');
+    else state.chooseyChecks.fails = checked('input[data-kind="ender"]');
+  }
+  restart(
+    `Choosey — touch rules: ${rulesJoined(state.chooseyChecks.rules)} · run-ender: ${failsJoined(state.chooseyChecks.fails)}${collapseOn ? ' · tiles vanish' : ''}. Number = 0.`,
+  );
+}
+
+function syncChooseyPanel() {
+  const panel = document.getElementById('choosey');
+  if (!panel) return;
+  panel.hidden = state.worldKey !== 'choosey';
+  if (panel.hidden) return;
+  const set = (kind: string, keys: readonly string[]) => {
+    for (const box of panel.querySelectorAll(`input[data-kind="${kind}"]`)) {
+      if (box instanceof HTMLInputElement) box.checked = keys.includes(box.dataset.key ?? '');
+    }
+  };
+  set('rule', state.chooseyChecks.rules);
+  set('ender', state.chooseyChecks.fails);
+  set('board', collapseOn ? ['vanish'] : []);
 }
 
 const MOVE_KEYS: Record<string, string> = IS_HEX
@@ -829,8 +1015,8 @@ const MOVE_KEYS: Record<string, string> = IS_HEX
 
 function confirmWipe(action: 'rule' | 'fail'): boolean {
   if (state.engine.turn === 0) return true;
-  const label = action === 'rule' ? 'collision rule' : 'failure rule';
-  return window.confirm(`Switch ${label}? This restarts the run (${state.engine.turn} moves in).`);
+  const label = action === 'rule' ? 'touch rule' : 'run-ender';
+  return window.confirm(`Change the ${label}? This starts the run over (${state.engine.turn} moves in).`);
 }
 
 const HEX_NO_NS_KEYS = new Set(['ArrowUp', 'ArrowDown', 'w', 's', 'W', 'S', 'Numpad8', 'Numpad2', '8', '2']);
@@ -857,6 +1043,13 @@ function toggleDebug() {
   syncUrl();
 }
 
+function toggleRulesReference() {
+  const details = document.getElementById('rules-details');
+  if (!(details instanceof HTMLDetailsElement)) return;
+  details.open = !details.open;
+  document.querySelector('#help [data-action="rules"]')?.classList.toggle('on', details.open);
+}
+
 document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const direct = MOVE_KEYS[e.key];
@@ -880,6 +1073,8 @@ document.addEventListener('keydown', (e) => {
     const btn = document.querySelector('#help [data-action="sound"]');
     if (btn instanceof HTMLElement) btn.classList.toggle('on', on);
     if (on) playCue('start');
+  } else if (k === 'l') {
+    toggleRulesReference();
   } else if (k === 'n') {
     nextWorld();
   } else if (k === 'g') {
@@ -904,6 +1099,7 @@ document.getElementById('help')?.addEventListener('click', (e) => {
   const action = btn.getAttribute('data-action');
   if (action === 'restart') restart();
   else if (action === 'debug') toggleDebug();
+  else if (action === 'rules') toggleRulesReference();
   else if (action === 'catalogue') location.href = 'index.html';
   else if (action === 'world') nextWorld();
   else if (action === 'worldgen') nextGenerated();
@@ -979,4 +1175,8 @@ if (IS_HEX) {
 
 if (state.debug) document.body.classList.add('debug');
 document.querySelector('#help [data-action="sound"]')?.classList.toggle('on', sound.enabled);
+
+const rulesRefHost = document.getElementById('rules-ref');
+if (rulesRefHost) renderRulesReference(rulesRefHost, (v) => `play.html?variant=${v.id}`);
+buildChooseyPanel();
 restart();

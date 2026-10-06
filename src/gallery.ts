@@ -1,6 +1,7 @@
 import { GALLERY_ORDER, VARIANTS, type ResolvedVariant } from './variants.ts';
 import { WORLDS } from './world.ts';
 import { APP_VERSION } from './version.ts';
+import { COLLAPSE_SHORT, RULE_SHORT, FAILURE_SHORT, WORLD_LONG, renderRulesReference } from './plain.ts';
 
 function mustEl(id: string): HTMLElement {
   const el = document.getElementById(id);
@@ -48,9 +49,9 @@ if (gameParams.some((k) => params.has(k))) {
     setText(a, 'h2', `${v.name}${v.collapse ? ' ⚛' : ''}`);
     setText(a, '.tagline', v.tagline);
     setText(a, '.how', v.how);
-    setText(a, '.meta', `collision: ${v.rule} · failure: ${v.fail}${v.collapse ? ' · collapse-to-floor' : ''} · variant updated ${v.updated}`);
+    setText(a, '.meta', `touch rule: ${v.rule} (${RULE_SHORT[v.rule]}) · run ends: ${v.fail} (${FAILURE_SHORT[v.fail]})${v.collapse ? ` · ${COLLAPSE_SHORT}` : ''} · updated ${v.updated}`);
     const w = WORLDS[v.world];
-    setText(a, '.world', `opens in world ${v.world || 'full'} — ${w?.name ?? 'unknown'} · world data last modified ${w?.updated ?? '—'}`);
+    setText(a, '.world', `opens in world ${v.world || 'full'} — ${w?.name ?? 'unknown'} · ${WORLD_LONG[v.world] ?? 'a generated map'} · map data last changed ${w?.updated ?? '—'}`);
     setText(a, '.hypothesis', v.hypothesis);
     return a;
   }
@@ -67,8 +68,19 @@ if (gameParams.some((k) => params.has(k))) {
     for (const id of ids) root.appendChild(card({ id, ...VARIANTS[id] }));
   }
 
-  // Layout experiments are not variants (the rules stay put; the board
-  // changes), so they live outside VARIANTS and render in their own group.
+  // Rules that are not a single pairing get their own bench cards: the board
+  // changes, or the rules themselves are the player's to tick.
+  const BENCH = [
+    {
+      name: 'Choosey',
+      tagline: 'the boxes under the board are the rules',
+      how: 'A world where nothing is fixed: tick which touch rules apply (the first ticked one that fits a tile does it), which run-enders can fire, and whether tiles vanish. Change a box and the run starts over.',
+      meta: 'rules experiment (?world=choosey) · touch + run-ender + vanish checkboxes under the board · updated 2026-10-06',
+      hypothesis:
+        'You will read the ticked list as a dial and turn it until the board feels like yours — mixing halves of different grammars (holding a number AND trading places) is the pairing no single variant offers. If the chart of first-applicable-wins is never consulted and runs feel incoherent instead, composed rules need names of their own, not checkboxes.',
+      href: 'play.html?world=choosey',
+    },
+  ];
   const LAYOUT_EXPERIMENTS = [
     {
       name: 'Hex lattice',
@@ -80,12 +92,12 @@ if (gameParams.some((k) => params.has(k))) {
       href: 'play.html?layout=hex&variant=verbs',
     },
   ];
-  if (LAYOUT_EXPERIMENTS.length) {
+  if (BENCH.length || LAYOUT_EXPERIMENTS.length) {
     const h = document.createElement('h2');
     h.className = 'group-label';
-    h.textContent = 'lab bench: layout experiments — the board, not the rules';
+    h.textContent = 'lab bench: the board and the rules, up to you';
     root.appendChild(h);
-    for (const e of LAYOUT_EXPERIMENTS) {
+    for (const e of [...BENCH, ...LAYOUT_EXPERIMENTS]) {
       const a = document.createElement('a');
       a.className = 'card';
       a.href = e.href;
@@ -96,7 +108,7 @@ if (gameParams.some((k) => params.has(k))) {
         <p class="meta"></p>
         <p class="hypothesis"></p>
         <p class="play">play →</p>`;
-      setText(a, 'h2', `⬡ ${e.name}`);
+      setText(a, 'h2', e.name === 'Hex lattice' ? `⬡ ${e.name}` : e.name);
       setText(a, '.tagline', e.tagline);
       setText(a, '.how', e.how);
       setText(a, '.meta', e.meta);
@@ -104,4 +116,7 @@ if (gameParams.some((k) => params.has(k))) {
       root.appendChild(a);
     }
   }
+
+  const refHost = document.getElementById('rules-ref');
+  if (refHost) renderRulesReference(refHost, (v) => `play.html?variant=${v.id}`);
 }

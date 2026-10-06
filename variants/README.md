@@ -71,6 +71,10 @@ keeping the experiment semantics from `_the_beginning.md`:
   `÷` gives the invalid `÷0` case.
 - **world full** (mixed) — the default board; a routing problem under collapse.
   Feeds Fallout, Hoarder, Masquerade.
+- **world choosey** (num-dn2) — the rule-composition lab: every tile kind is
+  offered (flat pairs, all four signs, a `0` beside a `÷`), and the rules come
+  from a checkbox panel under the board. See the README's Worlds section for
+  the composition semantics; it is a world, not a variant, so no notebook.
 
 Every variant opening now has no fatal first move (0/4) and a longest route of at
 least 7 moves; `test/world.test.js` enforces both.

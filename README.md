@@ -54,6 +54,25 @@ Any other rule/fail pairing plays as **custom** (shown in the header).
 The failure rule is a candidate too: <kbd>F</kbd> cycles `notUp → down → none`
 (`?fail=down` selects it directly).
 
+## Worlds
+
+Five hand-authored maps plus a generator; `N` cycles them. What the rules do on
+each map is described in plain words on the pages themselves (`L` on the game,
+or the reference section on the front page) — `src/plain.ts` is the single
+copy register both pages read, so the words cannot drift from the registries.
+
+- `full` — a bit of everything (numbers, all four signs)
+- `a` — nothing but numbers; zeros are the walls
+- `b` — number ring at the start, a long run of plus signs
+- `c` — numbers climb away from the start; biggest neighbours are traps
+- `d` — built to test losing: a no-operand sign and a `0` beside a `÷`
+- `choosey` — **the rules are yours**: a checkbox panel under the board ticks
+  touch rules, run-enders, and tiles-vanish on/off for that board. Ticked
+  touch rules try from the top of the list; the first that can handle a tile
+  does it (the engine composes them, `createChooseyEngine`). URL state:
+  `?world=choosey&crules=eval,relay&cfails=down&collapse=1`.
+- `gen` — seeded random 5×5 (`?world=gen&seed=N`)
+
 ## Controls
 
 - Arrow keys / WASD / numpad (2 4 6 8): move — the only verb
@@ -73,9 +92,11 @@ The failure rule is a candidate too: <kbd>F</kbd> cycles `notUp → down → non
 - `N`: next test world
 - `G`: generate a fresh seeded world (`?world=gen&seed=N` is written to the URL,
   so the exact map can be shared)
-- `C`: cycle collision rule
-- `F`: cycle failure rule
-- `X`: toggle collapse-to-floor (tiles burn out behind you; opt-in)
+- `C`: cycle touch rule (what touching a tile does)
+- `F`: cycle run-ender (what can end the run)
+- `X`: tiles vanish behind you (collapse-to-floor; opt-in, default off; the
+  `fallout` variant sets it on)
+- `L`: toggle the plain-words rules reference (also on the front page)
 - `@` chip or the feedback line: send feedback with your current run state
   attached → maphew+number-up@gmail.com (full move log with pending operand,
   not just the last ten moves)
@@ -83,7 +104,8 @@ The failure rule is a candidate too: <kbd>F</kbd> cycles `notUp → down → non
   each shortcut with mouse or touch
 - URL params: `?variant=verbs|accretion|becoming|fallout|plateau|cadence|relay|rehearsal|hoarder|masquerade`
   (sets rule, failure, and starting world; takes precedence) or the lower-level
-  `?world=full|a|b|c|d|gen&seed=N&rule=replace|add|eval|relay&fail=notUp|down|none&debug=1`
+  `?world=full|a|b|c|d|choosey|gen&seed=N&rule=replace|add|eval|relay&fail=notUp|down|none&debug=1`
+  (`choosey` ignores `rule`/`fail` and reads `crules`/`cfails` instead)
 - URL param `?collapse=1` (or `X` key / collapse chip): tiles collapse to floor
   after collision — opt-in experiment, default off; the `fallout` variant sets
   it on. Replay-safe: `?collapse=0` forces it off.
@@ -108,18 +130,28 @@ The failure rule is a candidate too: <kbd>F</kbd> cycles `notUp → down → non
 
 ## Where things live
 
+- **Plain-words copy + rules reference chart**: `src/plain.ts` → `RULE_LONG` /
+  `RULE_SHORT`, `FAILURE_LONG` / `FAILURE_SHORT`, `WORLD_LONG`, glossary, and
+  `renderRulesReference` (the touch × run-ender lookup table). Both bundles
+  render from it, so the game page (`?L` panel), the catalogue section, and
+  the choosey checkbox labels all say the same thing.
 - **Variant registry**: `src/variants.ts` → `VARIANTS`. Named rule × failure ×
   world combinations with a one-line hypothesis each. Both the front-page
   gallery (`index.html` + `gallery.js`) and the game (`play.html`) read it.
   Per-variant notebooks live in `variants/<id>.md`. Registry carries
   `updated` (meaningful-change date, shown on cards and in the notebook) and
   optional `collapse` (collapse-to-floor on).
-- **Collision rule**: `engine.js` → `RULES`. Each rule is
-  `superpose(currentNumber, destinationTile, ctx) → result`. Shipped candidates:
+- **Collision rule**: `engine.ts` → `RULES`. Each rule is
+  `superpose(currentNumber, destinationTile, ctx) → result` and marks
+  `ctx.applied` when it can handle the tile. Shipped candidates:
   `replace` (Number becomes the tile), `add` (Number plus tile), `eval`
   (numbers set a pending operand; operators apply themselves to current Number
-  and that pending operand — one interpretation of "operator as verb").
-- **Failure rule**: `engine.js` → `FAILURE_RULES`. Each rule is
+  and that pending operand — one interpretation of "operator as verb"),
+  `relay` (swap / arm / consume).
+- **Composed rules (choosey)**: `engine.ts` → `createChooseyEngine({rules,
+  fails})`. Touch rules probe top-to-bottom; the first that marks the tile
+  handles it, and its result (even an invalid one) stands. Run-enders are OR.
+- **Failure rule**: `engine.ts` → `FAILURE_RULES`. Each rule is
   `failed(event) → reason or null`. Shipped candidates: `notUp` (provisional:
   the run ends when Number fails to go UP or becomes invalid), `down` (the
   gentler candidate: the run ends only when Number goes DOWN or becomes

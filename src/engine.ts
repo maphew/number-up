@@ -9,6 +9,8 @@ export interface MoveContext {
   carried?: Operator | null;
   // relay rule: what the destination tile becomes — play.ts renders board edits.
   effect?: RuleEffect;
+  // set true by a rule that can handle the tile (see createChooseyEngine).
+  applied?: boolean;
 }
 
 // What a relay move does to the board on top of changing Number.
@@ -98,6 +100,7 @@ export const RULES = {
     superpose(currentNumber, tile, ctx) {
       const kind = classify(tile);
       if (kind !== 'num') return currentNumber;
+      ctx.applied = true;
       ctx.pending = Number(tile);
       return Number(tile);
     },
@@ -107,6 +110,7 @@ export const RULES = {
     superpose(currentNumber, tile, ctx) {
       const kind = classify(tile);
       if (kind === 'op' || kind === 'floor') return currentNumber;
+      ctx.applied = true;
       ctx.pending = Number(tile);
       return currentNumber + Number(tile);
     },
@@ -117,10 +121,12 @@ export const RULES = {
       const kind = classify(tile);
       if (kind === 'floor') return currentNumber;
       if (kind === 'num') {
+        ctx.applied = true;
         ctx.pending = Number(tile);
         return Number(tile);
       }
       if (!isOperator(tile)) return NaN;
+      ctx.applied = true;
       if (ctx.pending === null) {
         ctx.noOperand = tile;
         return NaN;
@@ -135,6 +141,7 @@ export const RULES = {
       const kind = classify(tile);
       if (kind === 'floor') return currentNumber;
       if (kind === 'num') {
+        ctx.applied = true;
         if (armed !== null) {
           ctx.carried = null;
           ctx.effect = { kind: 'consume' };
@@ -144,6 +151,7 @@ export const RULES = {
         return Number(tile);
       }
       if (!isOperator(tile)) return NaN;
+      ctx.applied = true;
       ctx.carried = tile;
       ctx.effect = armed === null ? { kind: 'pickup' } : { kind: 'opswap', dropped: armed };
       return currentNumber;
@@ -164,11 +172,11 @@ export const FAILURE_RULES = {
     name: 'NUMBER NOT UP',
     failed(ev) {
       if (!ev.valid) {
-        if (ev.noOperand !== undefined) return `${ev.noOperand} had nothing to act on`;
-        return 'Number became invalid — UP is undefined here';
+        if (ev.noOperand !== undefined) return `${ev.noOperand} had no number to act on`;
+        return 'That move was impossible — it made no number';
       }
-      if (ev.result < ev.oldNumber) return 'Number went DOWN';
-      if (ev.result === ev.oldNumber) return 'Number did not go UP';
+      if (ev.result < ev.oldNumber) return 'Your number went down';
+      if (ev.result === ev.oldNumber) return 'Your number did not go up';
       return null;
     },
   },
@@ -176,10 +184,10 @@ export const FAILURE_RULES = {
     name: 'NUMBER WENT DOWN',
     failed(ev) {
       if (!ev.valid) {
-        if (ev.noOperand !== undefined) return `${ev.noOperand} had nothing to act on`;
-        return 'Number became invalid — there is no Number left to compare';
+        if (ev.noOperand !== undefined) return `${ev.noOperand} had no number to act on`;
+        return 'That move was impossible — your number vanished';
       }
-      if (ev.result < ev.oldNumber) return 'Number went DOWN';
+      if (ev.result < ev.oldNumber) return 'Your number went down';
       return null;
     },
   },
@@ -190,8 +198,12 @@ export type FailureName = keyof typeof FAILURE_RULES;
 export interface Engine {
   readonly rule: CollisionRule;
   readonly failure: FailureRule;
-  readonly ruleName: RuleName;
-  readonly failureName: FailureName;
+  readonly ruleName: string;
+  readonly failureName: string;
+  // which rules are in play. A single engine ticks exactly one of each;
+  // choosey ticks whatever the checkboxes hold.
+  readonly ruleChecks: readonly string[];
+  readonly failureChecks: readonly string[];
   readonly turn: number;
   readonly history: MoveEvent[];
   readonly pending: number | null;
@@ -208,11 +220,87 @@ function named<T extends Record<string, unknown>>(
   return Object.prototype.hasOwnProperty.call(table, key) ? key : fallback;
 }
 
+// Keep only names the registries know, drop duplicates, and keep the ticked
+// order verbatim — the checkbox list order is the tie-breaker the player sees.
+function listChecks<T extends Record<string, unknown>>(
+  table: T,
+  picked: readonly string[],
+): (keyof T & string)[] {
+  const out: (keyof T & string)[] = [];
+  const seen = new Set<string>();
+  for (const k of picked) {
+    if (seen.has(k)) continue;
+    if (Object.prototype.hasOwnProperty.call(table, k)) {
+      seen.add(k);
+      out.push(k as keyof T & string);
+    }
+  }
+  return out;
+}
+
 export function createEngine(ruleName: string, failureName: string): Engine {
   const resolvedRule: RuleName = named(RULES, ruleName, 'eval');
   const resolvedFailure: FailureName = named(FAILURE_RULES, failureName, 'notUp');
-  const rule: CollisionRule = RULES[resolvedRule];
-  const failure: FailureRule = FAILURE_RULES[resolvedFailure];
+  return createEngineFrom([resolvedRule], [resolvedFailure], false);
+}
+
+export interface ChooseChecks {
+  rules: readonly string[];
+  fails: readonly string[];
+}
+
+// Choosey (num-dn2): a run driven by a ticked checkbox list instead of one
+// rule × one failure. Touch rules are probed top-to-bottom and the first one
+// that marks the tile as its own handles it; if the top ticked rule marks a
+// tile and fumbles it, the move is invalid — lower ticks never rescue it.
+// Run-enders are OR: the first ticked failure to name a reason names it.
+export function createChooseyEngine(checks: ChooseChecks): Engine {
+  return createEngineFrom(
+    listChecks(RULES, checks.rules),
+    listChecks(FAILURE_RULES, checks.fails),
+    true,
+  );
+}
+
+function createEngineFrom(components: (keyof typeof RULES)[], enders: (keyof typeof FAILURE_RULES)[], asChoosey: boolean): Engine {
+  const composite = components.length !== 1 || enders.length !== 1;
+  const firstRule = components[0] ?? 'replace';
+  const firstEnder = enders[0] ?? 'notUp';
+  const rule: CollisionRule = composite
+    ? {
+        name: 'choosey — first ticked rule that fits the tile',
+        superpose(currentNumber, tile, ctx) {
+          for (const key of components) {
+            const probe: MoveContext = { pending: ctx.pending, carried: ctx.carried };
+            const result = RULES[key].superpose(currentNumber, tile, probe);
+            if (probe.applied) {
+              ctx.pending = probe.pending;
+              ctx.carried = probe.carried;
+              ctx.noOperand = probe.noOperand;
+              ctx.effect = probe.effect;
+              return result;
+            }
+          }
+          return currentNumber;
+        },
+      }
+    : RULES[firstRule];
+  const failure: FailureRule = composite
+    ? {
+        name: 'choosey — first ticked run-ender to fire',
+        failed(ev) {
+          for (const key of enders) {
+            const reason = FAILURE_RULES[key].failed(ev);
+            if (reason !== null) return reason;
+          }
+          return null;
+        },
+      }
+    : FAILURE_RULES[firstEnder];
+  const resolvedRule: string = composite ? 'choosey' : asChoosey ? 'choosey' : firstRule;
+  const resolvedFailure: string = composite ? 'choosey' : asChoosey ? 'choosey' : firstEnder;
+  const ruleList: readonly string[] = [...components];
+  const enderList: readonly string[] = [...enders];
   let pending: number | null = null;
   let carried: Operator | null = null;
   let turn = 0;
@@ -230,6 +318,12 @@ export function createEngine(ruleName: string, failureName: string): Engine {
     },
     get failureName() {
       return resolvedFailure;
+    },
+    get ruleChecks() {
+      return ruleList;
+    },
+    get failureChecks() {
+      return enderList;
     },
     get turn() {
       return turn;

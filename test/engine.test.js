@@ -54,16 +54,18 @@ describe('eval rule semantics (current candidate: numeric)', () => {
 describe('notUp failure rule boundaries (check order: invalid, DOWN, flat)', () => {
   const { notUp } = FAILURE_RULES;
 
-  it('invalid is reported first (even when result would compare as DOWN)', () => {
+  it('the impossible move is reported first (even when result would compare as DOWN)', () => {
     // result null < oldNumber 5 is true, so DOWN would win if order were swapped.
     const reason = notUp.failed({ valid: false, result: null, oldNumber: 5 });
-    assert.match(reason, /invalid/i);
-  });  it('DOWN is reported when the Number decreases', () => {
-    assert.match(notUp.failed({ valid: true, result: 3, oldNumber: 5 }), /DOWN/);
+    assert.match(reason, /impossible/i);
+  });  it('a decrease is reported plainly', () => {
+    const reason = notUp.failed({ valid: true, result: 3, oldNumber: 5 });
+    assert.match(reason, /went down/);
   });
 
   it('flat is reported when the Number does not change', () => {
-    assert.match(notUp.failed({ valid: true, result: 5, oldNumber: 5 }), /not go UP/);
+    const reason = notUp.failed({ valid: true, result: 5, oldNumber: 5 });
+    assert.match(reason, /did not go up/);
   });
 
   it('going UP is not a failure', () => {
@@ -76,18 +78,18 @@ describe('notUp failure rule boundaries (check order: invalid, DOWN, flat)', () 
     const down = engine.attempt(6, 'up', '−');
     assert.equal(down.result, 0);
     assert.equal(down.failed, true);
-    assert.match(down.failReason, /DOWN/);
+    assert.match(down.failReason, /went down/);
 
     const engine2 = createEngine('eval', 'notUp');
     engine2.attempt(1, 'up', '6');
     const flat = engine2.attempt(6, 'up', 'wall');
     assert.equal(flat.failed, true);
-    assert.match(flat.failReason, /not go UP/);
+    assert.match(flat.failReason, /did not go up/);
 
     const engine3 = createEngine('eval', 'notUp');
     const invalid = engine3.attempt(5, 'up', '+');
     assert.equal(invalid.failed, true);
-    assert.match(invalid.failReason, /had nothing to act on/);
+    assert.match(invalid.failReason, /no number to act on/);
 
     const engine4 = createEngine('eval', 'notUp');
     engine4.attempt(1, 'up', '6');
@@ -100,14 +102,14 @@ describe('notUp failure rule boundaries (check order: invalid, DOWN, flat)', () 
 describe('down failure rule: only a decrease ends the run', () => {
   const { down } = FAILURE_RULES;
 
-  it('invalid is reported first (no Number to carry onward)', () => {
+  it('the impossible move is reported first (no Number to carry onward)', () => {
     const reason = down.failed({ valid: false, result: null, oldNumber: 5 });
-    assert.match(reason, /invalid/i);
+    assert.match(reason, /impossible/i);
     assert.doesNotMatch(reason, /\bUP\b/i); // down must not explain itself via UP
   });
 
-  it('DOWN is reported when the Number decreases', () => {
-    assert.match(down.failed({ valid: true, result: 3, oldNumber: 5 }), /DOWN/);
+  it('a decrease is reported plainly', () => {
+    assert.match(down.failed({ valid: true, result: 3, oldNumber: 5 }), /went down/);
   });
 
   it('flat is NOT a failure (same level is fine)', () => {
@@ -130,12 +132,12 @@ describe('down failure rule: only a decrease ends the run', () => {
     const down = engine2.attempt(6, 'up', '−');
     assert.equal(down.result, 0);
     assert.equal(down.failed, true);
-    assert.match(down.failReason, /DOWN/);
+    assert.match(down.failReason, /went down/);
 
     const engine3 = createEngine('eval', 'down');
     const invalid = engine3.attempt(5, 'up', '+');
     assert.equal(invalid.failed, true);
-    assert.match(invalid.failReason, /had nothing to act on/);
+    assert.match(invalid.failReason, /no number to act on/);
   });
 });
 
@@ -251,7 +253,7 @@ describe('relay rule semantics (num-ak7: swap · arm · consume)', () => {
     const engine = createEngine(RELAY, 'notUp');
     const down = engine.attempt(9, 'up', '4');
     assert.equal(down.failed, true);
-    assert.match(down.failReason, /DOWN/);
+    assert.match(down.failReason, /went down/);
 
     const engine2 = createEngine(RELAY, 'notUp');
     engine2.attempt(1, 'up', '+');
@@ -310,22 +312,22 @@ describe('createEngine wiring', () => {
 });
 
 describe('operator-with-no-operand names its death (num-wkq.3)', () => {
-  it('an operator with no pending operand says what had nothing to act on', () => {
+  it('an operator with no pending operand says what it needed', () => {
     const engine = createEngine('eval', 'notUp');
     const ev = engine.attempt(5, 'up', '×');
     assert.equal(ev.valid, false);
     assert.equal(ev.failed, true);
-    assert.match(ev.failReason, /× had nothing to act on/);
+    assert.match(ev.failReason, /× had no number to act on/);
   });
 
-  it('÷ by zero keeps the generic invalid message (operand present, result undefined)', () => {
+  it('÷ by zero keeps the generic impossible message (operand present, result undefined)', () => {
     const engine = createEngine('eval', 'notUp');
     engine.attempt(1, 'up', '0'); // pending = 0
     const ev = engine.attempt(0, 'up', '÷');
     assert.equal(ev.valid, false);
     assert.equal(ev.failed, true);
-    assert.match(ev.failReason, /invalid/i);
-    assert.doesNotMatch(ev.failReason, /nothing to act on/);
+    assert.match(ev.failReason, /impossible/i);
+    assert.doesNotMatch(ev.failReason, /number to act on/);
   });
 });
 
@@ -350,6 +352,6 @@ describe('round() never corrupts the carried Number (num-wkq.5)', () => {
     assert.equal(ev.valid, true);
     assert.equal(ev.result, 6);
     assert.equal(ev.failed, true);
-    assert.match(ev.failReason, /not go UP/);
+    assert.match(ev.failReason, /did not go up/);
   });
 });

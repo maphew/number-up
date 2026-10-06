@@ -134,6 +134,6 @@ describe('formatRunDump', () => {
       },
       engine.history,
     );
-    assert.match(dump, /had nothing to act on/);
+    assert.match(dump, /no number to act on/);
   });
 });
