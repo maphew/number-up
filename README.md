@@ -45,6 +45,7 @@ branching musings) live in `variants/`.
 
 | variant | collision | failure | in one line |
 |---------|-----------|---------|-------------|
+| Relay | `relay` | `none` | swap with numbers, pick up signs, spend them — consumption leaves holes |
 | Rehearsal | `eval` | `none` | the verb grammar, stakes removed |
 | Hoarder | `add` | `none` | accumulation as a fidget toy |
 | Masquerade | `replace` | `none` | identity swap with nothing to lose |
@@ -64,6 +65,11 @@ The failure rule is a candidate too: <kbd>F</kbd> cycles `notUp → down → non
   cell, blocked moves get one line, and only debug narrates the arithmetic.
   Debug shows pending operand, rule/fail/world/variant/seed, the full move
   log, run totals, and a copy-run dump for notebooks and bug reports.
+- `M`: toggle sound cues. Every action gets a small, short, pre-generated
+  (synthesized in-memory, no asset files) WebAudio cue: Number up plays happy,
+  down sad, picking up an operator energised, consumption a hollow chomp,
+  blocked moves a dull thud. The same cue also flashes a colour vignette at the
+  edge of the screen on every action, so playing muted still *feels* it.
 - `N`: next test world
 - `G`: generate a fresh seeded world (`?world=gen&seed=N` is written to the URL,
   so the exact map can be shared)

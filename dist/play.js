@@ -55,6 +55,27 @@
         }
         return OPS[tile](currentNumber, ctx.pending);
       }
+    },
+    relay: {
+      name: "relay \u2014 swap \xB7 arm \xB7 consume",
+      superpose(currentNumber, tile, ctx) {
+        const armed = ctx.carried ?? null;
+        const kind = classify(tile);
+        if (kind === "floor") return currentNumber;
+        if (kind === "num") {
+          if (armed !== null) {
+            ctx.carried = null;
+            ctx.effect = { kind: "consume" };
+            return OPS[armed](currentNumber, Number(tile));
+          }
+          ctx.effect = { kind: "swap" };
+          return Number(tile);
+        }
+        if (!isOperator(tile)) return NaN;
+        ctx.carried = tile;
+        ctx.effect = armed === null ? { kind: "pickup" } : { kind: "opswap", dropped: armed };
+        return currentNumber;
+      }
     }
   };
   var FAILURE_RULES = {
@@ -97,6 +118,7 @@
     const rule = RULES[resolvedRule];
     const failure = FAILURE_RULES[resolvedFailure];
     let pending = null;
+    let carried = null;
     let turn = 0;
     const history2 = [];
     return {
@@ -121,14 +143,19 @@
       get pending() {
         return pending;
       },
+      get carried() {
+        return carried;
+      },
       reset() {
         pending = null;
+        carried = null;
         turn = 0;
         history2.length = 0;
       },
       attempt(currentNumber, direction, tile) {
         const pendingBefore = pending;
-        const ctx = { pending };
+        const carriedBefore = carried;
+        const ctx = { pending, carried: carriedBefore };
         let result;
         try {
           result = rule.superpose(currentNumber, tile, ctx);
@@ -136,7 +163,9 @@
           result = NaN;
         }
         pending = ctx.pending;
+        carried = ctx.carried ?? null;
         const noOperand = ctx.noOperand;
+        const effect = ctx.effect ?? { kind: "none" };
         const valid = typeof result === "number" && Number.isFinite(result);
         const base = {
           turn: ++turn,
@@ -145,6 +174,8 @@
           destinationTile: tile,
           rule: rule.name,
           pendingAtEntry: pendingBefore,
+          carriedAtEntry: carriedBefore,
+          effect,
           noOperand
         };
         const rounded = valid ? round(result) : null;
@@ -220,6 +251,22 @@
   };
   var WORLD_ORDER = ["full", "a", "b", "c", "d"];
   var COLLAPSED_TILE = "floor";
+  var HOLE = "\u2205";
+  function createMatterState() {
+    const cells = /* @__PURE__ */ new Map();
+    return {
+      at(raw, x, y) {
+        const m = cells.get(`${x},${y}`);
+        return m === void 0 ? raw : m;
+      },
+      set(x, y, glyph) {
+        cells.set(`${x},${y}`, glyph);
+      },
+      clear() {
+        cells.clear();
+      }
+    };
+  }
   function createCollapseState() {
     const spent = /* @__PURE__ */ new Set();
     return {
@@ -367,12 +414,25 @@
       hypothesis: "With re-entry fatal, you will plan routes instead of mashing loops. If world full becomes a 5-move puzzle with a best Number near 243, finiteness reads as routing, not as shortness.",
       updated: "2026-10-02",
       collapse: true
+    },
+    relay: {
+      name: "Relay",
+      tagline: "numbers trade places; signs ride on you until spent",
+      how: "Walk onto a number unarmed and you two swap places. Walk onto a sign to pick it up, now armed; the next number you touch takes its operator and is consumed, leaving a hole nothing can enter.",
+      rule: "relay",
+      fail: "none",
+      world: "full",
+      hypothesis: "You will start authoring collisions instead of reading them: grab a sign only when you already know which number it should hit, and use swap as free position-economy since nothing is ever a wall until you eat a hole into it. If the board still reads as a static obstacle field you dodge, possession needs stakes to become strategy.",
+      updated: "2026-10-06"
     }
   };
   function isVariantId(id) {
     return Object.prototype.hasOwnProperty.call(VARIANTS, id);
   }
   var VARIANT_ORDER = Object.keys(VARIANTS).filter(isVariantId);
+  var GALLERY_ORDER = [...VARIANT_ORDER].sort(
+    (a, b) => VARIANTS[b].updated.localeCompare(VARIANTS[a].updated)
+  );
   function getVariant(id) {
     if (!isVariantId(id)) return null;
     return { id, ...VARIANTS[id] };
@@ -537,7 +597,8 @@
       const at = from?.[i];
       const pos = at === void 0 || at === null ? "" : ` from ${at.x},${at.y}`;
       const fail = ev.failed && ev.failReason ? `  \u2620 ${ev.failReason}` : "";
-      return `${String(ev.turn).padStart(3)} ${ev.direction.padEnd(5)}${pos} ${fmtNum(ev.oldNumber)} ${ev.destinationTile} [${kind}] ${outcome} pending=${fmtPending(ev.pendingAtEntry)}${fail}`;
+      const arm = ev.carriedAtEntry == null ? "" : ` arm=${ev.carriedAtEntry}`;
+      return `${String(ev.turn).padStart(3)} ${ev.direction.padEnd(5)}${pos} ${fmtNum(ev.oldNumber)} ${ev.destinationTile} [${kind}] ${outcome} pending=${fmtPending(ev.pendingAtEntry)}${arm}${fail}`;
     });
   }
   function formatRunDump(ctx, history2, from) {
@@ -554,6 +615,7 @@
       `Seed: ${ctx.seed === null ? "\u2014" : String(ctx.seed)}`,
       `URL: ${ctx.url}`,
       `Number: ${fmtNum(ctx.number)}`,
+      ...ctx.carried ? [`Armed operator: ${ctx.carried}`] : [],
       `Turns ${totals.turns} \xB7 peak ${totals.peak === null ? "\u2014" : totals.peak} \xB7 final ${totals.final === null ? "\u2014" : totals.final} \xB7 up ${totals.up} \xB7 down ${totals.down} \xB7 flat ${totals.flat} \xB7 invalid ${totals.invalid}`,
       "",
       "Log:",
@@ -562,8 +624,165 @@
     return lines.join("\n");
   }
 
+  // src/sound.ts
+  var SR_BASE = 44100;
+  function waveAt(wave, phase) {
+    switch (wave) {
+      case "sine":
+        return Math.sin(phase);
+      case "tri":
+        return Math.asin(Math.sin(phase)) * (2 / Math.PI);
+      case "square":
+        return Math.sin(phase) >= 0 ? 0.7 : -0.7;
+      case "noise":
+        return Math.random() * 2 - 1;
+    }
+  }
+  var RECIPES = {
+    happy: {
+      dur: 0.13,
+      voices: [
+        { wave: "sine", f0: 523, f1: 784, amp: 0.5, dur: 0.12, tau: 0.05 },
+        { wave: "sine", f0: 1046, f1: 1568, amp: 0.16, dur: 0.11, tau: 0.04 }
+      ]
+    },
+    sad: {
+      dur: 0.19,
+      voices: [
+        { wave: "sine", f0: 415, f1: 262, amp: 0.5, dur: 0.17, tau: 0.07 },
+        { wave: "sine", f0: 208, f1: 131, amp: 0.2, dur: 0.17, tau: 0.08 }
+      ]
+    },
+    flat: {
+      dur: 0.07,
+      voices: [{ wave: "sine", f0: 330, amp: 0.3, dur: 0.06, tau: 0.025 }]
+    },
+    pickup: {
+      dur: 0.18,
+      voices: [
+        { wave: "tri", f0: 659, amp: 0.45, dur: 0.05, tau: 0.02 },
+        { wave: "tri", f0: 988, amp: 0.4, onset: 0.03, dur: 0.06, tau: 0.02 },
+        { wave: "tri", f0: 1319, amp: 0.45, onset: 0.06, dur: 0.11, tau: 0.03 },
+        { wave: "sine", f0: 2637, amp: 0.08, onset: 0.07, dur: 0.08, tau: 0.02 }
+      ]
+    },
+    consume: {
+      dur: 0.16,
+      voices: [
+        { wave: "noise", f0: 0, amp: 0.4, dur: 0.06, tau: 0.025, attack: 2e-3 },
+        { wave: "sine", f0: 196, f1: 98, amp: 0.45, dur: 0.15, tau: 0.07 }
+      ]
+    },
+    blocked: {
+      dur: 0.09,
+      voices: [
+        { wave: "square", f0: 96, amp: 0.28, dur: 0.08, tau: 0.035, attack: 2e-3 },
+        { wave: "sine", f0: 64, amp: 0.2, dur: 0.08, tau: 0.04, attack: 2e-3 }
+      ]
+    },
+    over: {
+      dur: 0.6,
+      voices: [
+        { wave: "sine", f0: 311, f1: 98, amp: 0.5, dur: 0.55, tau: 0.2 },
+        { wave: "sine", f0: 156, f1: 49, amp: 0.25, dur: 0.55, tau: 0.22 }
+      ]
+    },
+    start: {
+      dur: 0.1,
+      voices: [
+        { wave: "tri", f0: 392, amp: 0.3, dur: 0.06, tau: 0.03 },
+        { wave: "tri", f0: 660, amp: 0.2, onset: 0.04, dur: 0.05, tau: 0.02 }
+      ]
+    }
+  };
+  function createSoundKit() {
+    let enabled = true;
+    let ctx = null;
+    let master = null;
+    const buffers = /* @__PURE__ */ new Map();
+    function render2(recipe) {
+      const c = ctx;
+      const sr = c.sampleRate || SR_BASE;
+      const n = Math.ceil(recipe.dur * sr);
+      const buf = c.createBuffer(1, n, sr);
+      const data = buf.getChannelData(0);
+      for (const v of recipe.voices) {
+        const onset = v.onset ?? 0;
+        const attack = v.attack ?? 4e-3;
+        const tau = v.tau ?? recipe.dur / 2;
+        const f0 = v.f0;
+        const f1 = v.f1 ?? v.f0;
+        const tSpan = Math.max(v.dur, 1e-4);
+        let phase = 0;
+        const i0 = Math.floor(onset * sr);
+        const i1 = Math.min(n, Math.floor((onset + tSpan) * sr));
+        for (let i = i0; i < i1; i++) {
+          const t = (i - i0) / sr;
+          const r = f1 / f0;
+          const f = f1 === void 0 ? f0 : f0 * Math.exp(Math.log(r) * (t / tSpan));
+          phase += 2 * Math.PI * f / sr;
+          if (t < attack) {
+            data[i] = (data[i] ?? 0) + waveAt(v.wave, phase) * (t / attack) * v.amp;
+            continue;
+          }
+          const back = Math.exp(-(t - attack) / tau);
+          data[i] = (data[i] ?? 0) + waveAt(v.wave, phase) * back * v.amp;
+        }
+      }
+      return buf;
+    }
+    function ensure() {
+      if (ctx !== null && master !== null) {
+        if (ctx.state === "suspended") {
+          void ctx.resume();
+        }
+        return;
+      }
+      const AC = window.AudioContext ?? window.webkitAudioContext;
+      if (AC === void 0) {
+        enabled = false;
+        return;
+      }
+      try {
+        ctx = new AC();
+      } catch {
+        enabled = false;
+        return;
+      }
+      master = ctx.createGain();
+      master.gain.value = 0.15;
+      master.connect(ctx.destination);
+      for (const sig of Object.keys(RECIPES)) {
+        buffers.set(sig, render2(RECIPES[sig]));
+      }
+    }
+    return {
+      play(sig) {
+        if (!enabled) return;
+        ensure();
+        const c = ctx;
+        const m = master;
+        if (c === null || m === null) return;
+        if (c.state === "suspended") return;
+        const buf = buffers.get(sig);
+        if (!buf) return;
+        const src = c.createBufferSource();
+        src.buffer = buf;
+        src.connect(m);
+        src.start();
+      },
+      toggle() {
+        enabled = !enabled;
+        return enabled;
+      },
+      get enabled() {
+        return enabled;
+      }
+    };
+  }
+
   // src/version.ts
-  var APP_VERSION = "0.1.0";
+  var APP_VERSION = "0.2.0";
 
   // src/play.ts
   function mustEl(id) {
@@ -606,7 +825,8 @@
     pos: { x: 2, y: 2 },
     over: false,
     engine: createEngine(ruleKey, failKey),
-    spent: createCollapseState()
+    spent: createCollapseState(),
+    matter: createMatterState()
   };
   if (state.worldKey === "gen") {
     const s = parseInt(params.get("seed") ?? "", 10);
@@ -614,6 +834,7 @@
   }
   var CELL = 100;
   var CANVAS = 500;
+  var sound = createSoundKit();
   function hexRadius(cols, rows) {
     return Math.min(CANVAS / (Math.sqrt(3) * (cols + 0.5)), CANVAS / (1.5 * rows + 0.5));
   }
@@ -647,6 +868,7 @@
   var tileNodes = [];
   var playerNode;
   var playerNumberNode;
+  var playerCarriedNode;
   var fxLayer;
   function world() {
     if (state.worldKey === "gen") {
@@ -663,6 +885,8 @@
     const row = world().rows[y];
     const tile = row?.[x];
     if (tile === void 0) throw new Error(`no tile at ${x},${y}`);
+    const matter = state.matter.at(tile, x, y);
+    if (matter !== tile) return matter;
     return collapseOn ? state.spent.tile(tile, x, y) : tile;
   }
   function ns(tag, attrs) {
@@ -711,12 +935,8 @@
         const { cx, cy } = lat.centre(x, y);
         const glyph = row[x];
         if (glyph === void 0) continue;
-        if (glyph === ".") {
-          nodes.push(null);
-          continue;
-        }
         const text = ns("text", { x: cx, y: cy, class: isOperator(glyph) ? "tile op" : "tile" });
-        text.textContent = glyph;
+        if (glyph !== ".") text.textContent = glyph;
         svg.appendChild(text);
         nodes.push(text);
       }
@@ -727,6 +947,8 @@
     playerNode.appendChild(ns("circle", { cx: 0, cy: 0, r: unit * 0.3, class: "dot" }));
     playerNumberNode = ns("text", { x: 0, y: 1, class: "pnum" });
     playerNode.appendChild(playerNumberNode);
+    playerCarriedNode = ns("text", { x: 0, y: -unit * 0.42, class: "carried" });
+    playerNode.appendChild(playerCarriedNode);
     svg.appendChild(playerNode);
   }
   function paintCollapsedTiles(rows) {
@@ -765,6 +987,11 @@
     playerNumberNode.textContent = fmtNumber(state.number);
     playerNumberNode.classList.toggle("long", playerNumberNode.textContent.length > 4);
   }
+  function renderCarried() {
+    const op = state.engine.carried;
+    playerCarriedNode.textContent = op ?? "";
+    playerNode.classList.toggle("armed", op !== null);
+  }
   function statusClass(ev) {
     if (!ev.valid) return "down";
     if (ev.delta > 0) return "up";
@@ -783,23 +1010,89 @@
     if (ev.delta < 0) return `\u2193 ${ev.delta}`;
     return "\u2014 \xB10";
   }
-  function animateSuperpose(ev, from, to) {
-    const dest = tileNodes[to.y]?.[to.x] ?? null;
+  function setTileNode(x, y, glyph) {
+    const node = tileNodes[y]?.[x] ?? null;
+    if (!node) return;
+    node.textContent = glyph;
+    node.classList.toggle("hole", glyph === HOLE);
+  }
+  function applyEffect(ev, from, to) {
+    switch (ev.effect.kind) {
+      case "swap":
+        state.matter.set(from.x, from.y, ev.destinationTile);
+        state.matter.set(to.x, to.y, "");
+        setTileNode(from.x, from.y, ev.destinationTile);
+        setTileNode(to.x, to.y, "");
+        break;
+      case "pickup":
+        state.matter.set(to.x, to.y, "");
+        setTileNode(to.x, to.y, "");
+        break;
+      case "opswap":
+        state.matter.set(to.x, to.y, ev.effect.dropped);
+        setTileNode(to.x, to.y, ev.effect.dropped);
+        break;
+      case "consume":
+        state.matter.set(to.x, to.y, HOLE);
+        setTileNode(to.x, to.y, HOLE);
+        break;
+      case "none":
+        break;
+    }
+  }
+  function fly(glyph, from, to) {
     const { cx: fx, cy: fy } = cellCenter(from.x, from.y);
     const { cx: tx, cy: ty } = cellCenter(to.x, to.y);
-    if (collapseOn) collapseTileNode(to.x, to.y);
-    if (dest && dest.textContent !== "") {
-      const fly = ns("text", { x: 0, y: 0, class: "fly", transform: `translate(${fx}px, ${fy}px)` });
-      fly.textContent = ev.destinationTile;
-      fxLayer.appendChild(fly);
+    const node = ns("text", { x: 0, y: 0, class: "fly", transform: `translate(${fx}px, ${fy}px)` });
+    node.textContent = glyph;
+    fxLayer.appendChild(node);
+    requestAnimationFrame(() => {
+      node.style.transform = `translate(${fx}px, ${fy}px)`;
       requestAnimationFrame(() => {
-        fly.style.transform = `translate(${fx}px, ${fy}px)`;
-        requestAnimationFrame(() => {
-          fly.style.transform = `translate(${tx}px, ${ty}px)`;
-          fly.style.opacity = "0";
-        });
+        node.style.transform = `translate(${tx}px, ${ty}px)`;
+        node.style.opacity = "0";
       });
-      setTimeout(() => fly.remove(), 500);
+    });
+    setTimeout(() => node.remove(), 500);
+  }
+  function cueFor(ev) {
+    if (ev.failed) return "over";
+    if (!ev.valid) return "sad";
+    switch (ev.effect.kind) {
+      case "pickup":
+      case "opswap":
+        return "pickup";
+      default: {
+        if (ev.delta > 0) return "happy";
+        if (ev.delta < 0) return "sad";
+        return "flat";
+      }
+    }
+  }
+  function flashVignette(sig) {
+    const v = document.getElementById("vignette");
+    if (!v) return;
+    v.className = `cue-${sig}`;
+    void v.offsetWidth;
+    v.classList.add("on");
+  }
+  function playCue(sig, delayed = null) {
+    sound.play(sig);
+    if (delayed !== null && sound.enabled) setTimeout(() => sound.play(delayed), 75);
+  }
+  function animateSuperpose(ev, from, to) {
+    applyEffect(ev, from, to);
+    const { cx: tx, cy: ty } = cellCenter(to.x, to.y);
+    if (ev.effect.kind === "swap") {
+      fly(ev.destinationTile, to, from);
+      fly(fmtNumber(ev.oldNumber), from, to);
+    } else if (ev.effect.kind === "opswap") {
+      fly(ev.effect.dropped, from, to);
+    } else if (ev.effect.kind === "pickup") {
+      fly(ev.destinationTile, to, to);
+    } else if (ev.effect.kind === "none") {
+      const dest = tileNodes[to.y]?.[to.x] ?? null;
+      if (dest && dest.textContent !== "") fly(ev.destinationTile, from, to);
     }
     playerNumberNode.textContent = fmtNumber(state.number);
     playerNumberNode.classList.toggle("long", (playerNumberNode.textContent ?? "").length > 4);
@@ -832,6 +1125,13 @@
     obs.appendChild(line("", ""));
     obs.appendChild(line("flat", "Blocked \u2014 edge of world."));
   }
+  function showBlockedHole(direction) {
+    const obs = els.observation;
+    obs.textContent = "";
+    obs.appendChild(line("", `You moved ${direction}.`));
+    obs.appendChild(line("", ""));
+    obs.appendChild(line("flat", "Blocked \u2014 a hole. Consumed numbers cannot be moved onto."));
+  }
   function verboseObservation(move) {
     const frag = document.createDocumentFragment();
     frag.appendChild(line("", `You moved ${move.direction}.`));
@@ -840,6 +1140,8 @@
     frag.appendChild(line("", ""));
     frag.appendChild(line("", `${fmtNumber(move.oldNumber)}  ${move.destinationTile}`));
     frag.appendChild(line("", `Pending: ${move.pendingAtEntry === null ? "\u2014" : move.pendingAtEntry}`));
+    frag.appendChild(line("", `Armed: ${move.carriedAtEntry ?? "\u2014"}`));
+    frag.appendChild(line("", `Effect: ${move.effect.kind}${move.effect.kind === "opswap" ? ` (drops ${move.effect.dropped})` : ""}`));
     frag.appendChild(line("", `Result: ${move.valid ? fmtNumber(move.result) : "INVALID"}`));
     const deltaNote = move.valid ? `  (\u0394 ${move.delta > 0 ? "+" : ""}${move.delta})` : "";
     frag.appendChild(line(
@@ -851,9 +1153,12 @@
   function quietObservation(move) {
     const frag = document.createDocumentFragment();
     const glyph = move.valid ? move.wentUp ? "\u2191" : move.delta < 0 ? "\u2193" : "\u2014" : "\u2715";
-    const pending = state.engine.pending;
-    const held = pending === null ? "" : ` [${pending}]`;
-    frag.appendChild(line(move.valid ? statusClass(move) : "down", `${glyph} ${fmtNumber(state.number)}${held}`));
+    const held = [];
+    if (move.pendingAtEntry !== null) held.push(`[${move.pendingAtEntry}]`);
+    const armed = state.engine.carried;
+    if (armed !== null) held.push(`\u2301${armed}`);
+    const tail = held.length ? ` ${held.join(" ")}` : "";
+    frag.appendChild(line(move.valid ? statusClass(move) : "down", `${glyph} ${fmtNumber(state.number)}${tail}`));
     return frag;
   }
   function showObservation(move, extra) {
@@ -945,6 +1250,7 @@ What happened / what should have happened:
       variantUpdated: v?.updated,
       variantHypothesis: v?.hypothesis,
       pending: state.engine.pending,
+      carried: state.engine.carried,
       appVersion: APP_VERSION
     };
   }
@@ -961,6 +1267,7 @@ What happened / what should have happened:
         IS_HEX ? "Layout hex (pointy-top odd-r, 6 neighbours) \u2014 \u2190\u2192/AD = W E \xB7 Q/E = NW/NE \xB7 Z/C = SW/SE \xB7 numpad 7/9/1/3 diagonals \xB7 swipe snaps to nearest of 6 (straight up/down \u2192 NE/SE)" : "Layout square (4 neighbours) \u2014 arrows / WASD / numpad \xB7 swipe dominant axis",
         `URL: ${ctx.url}`,
         `Pending: ${state.engine.pending === null ? "\u2014" : state.engine.pending}`,
+        `Armed: ${state.engine.carried ?? "\u2014"}`,
         v ? `Hypothesis: ${v.hypothesis}` : "Custom rule \xD7 fail pairing."
       ].join("\n");
     }
@@ -1008,6 +1315,7 @@ What happened / what should have happened:
   function render() {
     placePlayer();
     renderPnum();
+    renderCarried();
     playerNode.classList.toggle("dead", state.over);
     renderStatus();
     if (els.feedbackLink) els.feedbackLink.href = feedbackHref();
@@ -1028,6 +1336,17 @@ What happened / what should have happened:
       void playerNode.getBoundingClientRect();
       playerNode.classList.add("pop");
       showBlocked(name);
+      playCue("blocked");
+      flashVignette("blocked");
+      return;
+    }
+    if (tileAt(next.x, next.y) === HOLE) {
+      playerNode.classList.remove("pop");
+      void playerNode.getBoundingClientRect();
+      playerNode.classList.add("pop");
+      showBlockedHole(name);
+      playCue("blocked");
+      flashVignette("blocked");
       return;
     }
     const from = { ...state.pos };
@@ -1041,6 +1360,16 @@ What happened / what should have happened:
     }
     render();
     animateSuperpose(ev, from, state.pos);
+    renderCarried();
+    const cue = cueFor(ev);
+    if (ev.effect.kind === "consume" && !ev.failed) {
+      playCue("consume", cue);
+      flashVignette("consume");
+      if (sound.enabled) setTimeout(() => flashVignette(cue), 130);
+    } else {
+      playCue(cue);
+      flashVignette(cue);
+    }
     showObservation(ev, ev.failed ? showRunOver(ev) : null);
     if (ev.failed) state.over = true;
     render();
@@ -1058,6 +1387,7 @@ What happened / what should have happened:
     state.over = false;
     fromLog = [];
     state.spent.clear();
+    state.matter.clear();
     buildGrid();
     syncUrl();
     render();
@@ -1065,6 +1395,7 @@ What happened / what should have happened:
     const variantNote = v ? ` Variant ${v.name}.` : "";
     els.observation.textContent = message || `World ${state.worldKey} \u2014 ${world().name}.${variantNote} Number = 0.${movementNote()}`;
     if (state.debug) renderNotebook();
+    playCue("start");
   }
   function syncUrl() {
     try {
@@ -1104,7 +1435,7 @@ What happened / what should have happened:
   }
   function nextRule() {
     if (!IS_HEX && !confirmWipe("rule")) return;
-    state.ruleKey = cycle(["replace", "add", "eval"], state.ruleKey);
+    state.ruleKey = cycle(["replace", "add", "eval", "relay"], state.ruleKey);
     restart(`Collision rule \u2192 ${state.ruleKey} (${state.engine.rule.name}). Number = 0.`);
   }
   function nextFailure() {
@@ -1204,6 +1535,11 @@ What happened / what should have happened:
     } else if (k === "/") {
       e.preventDefault();
       toggleDebug();
+    } else if (k === "m") {
+      const on = sound.toggle();
+      const btn = document.querySelector('#help [data-action="sound"]');
+      if (btn instanceof HTMLElement) btn.classList.toggle("on", on);
+      if (on) playCue("start");
     } else if (k === "n") {
       nextWorld();
     } else if (k === "g") {
@@ -1233,7 +1569,11 @@ What happened / what should have happened:
     else if (action === "rule") nextRule();
     else if (action === "fail") nextFailure();
     else if (action === "collapse") toggleCollapse();
-    else if (action === "feedback") openFeedback();
+    else if (action === "sound") {
+      const k = sound.toggle();
+      btn.classList.toggle("on", k);
+      if (k) playCue("start");
+    } else if (action === "feedback") openFeedback();
   });
   var touchStart = null;
   var SWIPE_MIN = 24;
@@ -1285,6 +1625,7 @@ What happened / what should have happened:
     if (ruleKbd) ruleKbd.textContent = "V";
   }
   if (state.debug) document.body.classList.add("debug");
+  document.querySelector('#help [data-action="sound"]')?.classList.toggle("on", sound.enabled);
   restart();
 })();
 //# sourceMappingURL=play.js.map

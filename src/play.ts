@@ -1,8 +1,9 @@
 import { createEngine, FAILURE_RULES, isOperator, RULES, type FailureName, type MoveEvent, type RuleName } from './engine.ts';
-import { createCollapseState, findStart, generateWorld, WORLDS, WORLD_ORDER, type World, type WorldKey } from './world.ts';
+import { createCollapseState, createMatterState, findStart, generateWorld, HOLE, WORLDS, WORLD_ORDER, type MatterState, type World, type WorldKey } from './world.ts';
 import { getVariant, variantFor } from './variants.ts';
 import { createHexLattice, createSquareLattice, type Lattice, type Pos } from './lattice.ts';
 import { formatMoveLog, formatRunDump, summariseRun, type RunContext } from './debug.ts';
+import { createSoundKit, type Signal } from './sound.ts';
 import { APP_VERSION } from './version.ts';
 
 type PlayWorld = WorldKey | 'gen';
@@ -55,6 +56,7 @@ const state: {
   over: boolean;
   engine: ReturnType<typeof createEngine>;
   spent: ReturnType<typeof createCollapseState>;
+  matter: MatterState;
 } = {
   worldKey: resolveWorldKey(rawWorld, rawVariant?.world),
   genSeed: null,
@@ -66,6 +68,7 @@ const state: {
   over: false,
   engine: createEngine(ruleKey, failKey),
   spent: createCollapseState(),
+  matter: createMatterState(),
 };
 
 if (state.worldKey === 'gen') {
@@ -75,6 +78,8 @@ if (state.worldKey === 'gen') {
 
 const CELL = 100;
 const CANVAS = 500;
+
+const sound = createSoundKit();
 
 function hexRadius(cols: number, rows: number): number {
   return Math.min(CANVAS / (Math.sqrt(3) * (cols + 0.5)), CANVAS / (1.5 * rows + 0.5));
@@ -113,6 +118,7 @@ let fromLog: (Pos | null)[] = [];
 let tileNodes: (SVGElement | null)[][] = [];
 let playerNode: SVGElement;
 let playerNumberNode: SVGElement;
+let playerCarriedNode: SVGElement;
 let fxLayer: SVGElement;
 
 function world(): World {
@@ -132,6 +138,8 @@ function tileAt(x: number, y: number): string {
   const row = world().rows[y];
   const tile = row?.[x];
   if (tile === undefined) throw new Error(`no tile at ${x},${y}`);
+  const matter = state.matter.at(tile, x, y);
+  if (matter !== tile) return matter;
   return collapseOn ? state.spent.tile(tile, x, y) : tile;
 }
 
@@ -189,12 +197,10 @@ function buildGrid() {
       const { cx, cy } = lat.centre(x, y);
       const glyph = row[x];
       if (glyph === undefined) continue;
-      if (glyph === '.') {
-        nodes.push(null);
-        continue;
-      }
+      // Empty ground gets an (invisible) node too, so relay board edits can
+      // paint swapped-in numbers onto cells the world never had a glyph for.
       const text = ns('text', { x: cx, y: cy, class: isOperator(glyph) ? 'tile op' : 'tile' });
-      text.textContent = glyph;
+      if (glyph !== '.') text.textContent = glyph;
       svg.appendChild(text);
       nodes.push(text);
     }
@@ -207,6 +213,8 @@ function buildGrid() {
   playerNode.appendChild(ns('circle', { cx: 0, cy: 0, r: unit * 0.3, class: 'dot' }));
   playerNumberNode = ns('text', { x: 0, y: 1, class: 'pnum' });
   playerNode.appendChild(playerNumberNode);
+  playerCarriedNode = ns('text', { x: 0, y: -unit * 0.42, class: 'carried' });
+  playerNode.appendChild(playerCarriedNode);
   svg.appendChild(playerNode);
 }
 
@@ -251,6 +259,12 @@ function renderPnum() {
   playerNumberNode.classList.toggle('long', playerNumberNode.textContent.length > 4);
 }
 
+function renderCarried() {
+  const op = state.engine.carried;
+  playerCarriedNode.textContent = op ?? '';
+  playerNode.classList.toggle('armed', op !== null);
+}
+
 function statusClass(ev: MoveEvent): string {
   if (!ev.valid) return 'down';
   if (ev.delta > 0) return 'up';
@@ -272,24 +286,101 @@ function deltaGlyph(ev: MoveEvent): string {
   return '— ±0';
 }
 
-function animateSuperpose(ev: MoveEvent, from: Pos, to: Pos) {
-  const dest = tileNodes[to.y]?.[to.x] ?? null;
+function setTileNode(x: number, y: number, glyph: string) {
+  const node = tileNodes[y]?.[x] ?? null;
+  if (!node) return;
+  node.textContent = glyph;
+  node.classList.toggle('hole', glyph === HOLE);
+}
+
+// applyEffect turns the rule's board effect into the matter overlay and
+// SVG state, so tileAt (and every re-render) sees the same board as play.ts.
+function applyEffect(ev: MoveEvent, from: Pos, to: Pos) {
+  switch (ev.effect.kind) {
+    case 'swap':
+      state.matter.set(from.x, from.y, ev.destinationTile);
+      state.matter.set(to.x, to.y, '');
+      setTileNode(from.x, from.y, ev.destinationTile);
+      setTileNode(to.x, to.y, '');
+      break;
+    case 'pickup':
+      state.matter.set(to.x, to.y, '');
+      setTileNode(to.x, to.y, '');
+      break;
+    case 'opswap':
+      state.matter.set(to.x, to.y, ev.effect.dropped);
+      setTileNode(to.x, to.y, ev.effect.dropped);
+      break;
+    case 'consume':
+      state.matter.set(to.x, to.y, HOLE);
+      setTileNode(to.x, to.y, HOLE);
+      break;
+    case 'none':
+      break;
+  }
+}
+
+function fly(glyph: string, from: Pos, to: Pos) {
   const { cx: fx, cy: fy } = cellCenter(from.x, from.y);
   const { cx: tx, cy: ty } = cellCenter(to.x, to.y);
-
-  if (collapseOn) collapseTileNode(to.x, to.y);
-  if (dest && dest.textContent !== '') {
-    const fly = ns('text', { x: 0, y: 0, class: 'fly', transform: `translate(${fx}px, ${fy}px)` });
-    fly.textContent = ev.destinationTile;
-    fxLayer.appendChild(fly);
+  const node = ns('text', { x: 0, y: 0, class: 'fly', transform: `translate(${fx}px, ${fy}px)` });
+  node.textContent = glyph;
+  fxLayer.appendChild(node);
+  requestAnimationFrame(() => {
+    node.style.transform = `translate(${fx}px, ${fy}px)`;
     requestAnimationFrame(() => {
-      fly.style.transform = `translate(${fx}px, ${fy}px)`;
-      requestAnimationFrame(() => {
-        fly.style.transform = `translate(${tx}px, ${ty}px)`;
-        fly.style.opacity = '0';
-      });
+      node.style.transform = `translate(${tx}px, ${ty}px)`;
+      node.style.opacity = '0';
     });
-    setTimeout(() => fly.remove(), 500);
+  });
+  setTimeout(() => node.remove(), 500);
+}
+
+// The felt signal of a move: feeds both the sound cue and the vignette.
+function cueFor(ev: MoveEvent): Signal {
+  if (ev.failed) return 'over';
+  if (!ev.valid) return 'sad';
+  switch (ev.effect.kind) {
+    case 'pickup':
+    case 'opswap':
+      return 'pickup';
+    default: {
+      if (ev.delta > 0) return 'happy';
+      if (ev.delta < 0) return 'sad';
+      return 'flat';
+    }
+  }
+}
+
+function flashVignette(sig: Signal) {
+  const v = document.getElementById('vignette');
+  if (!v) return;
+  v.className = `cue-${sig}`;
+  void v.offsetWidth;
+  v.classList.add('on');
+}
+
+// Sounds stagger when two phrases belong to one action (a chomp, then its
+// emotional colour), never overlapping on the same onset.
+function playCue(sig: Signal, delayed: Signal | null = null) {
+  sound.play(sig);
+  if (delayed !== null && sound.enabled) setTimeout(() => sound.play(delayed), 75);
+}
+
+function animateSuperpose(ev: MoveEvent, from: Pos, to: Pos) {
+  applyEffect(ev, from, to);
+  const { cx: tx, cy: ty } = cellCenter(to.x, to.y);
+
+  if (ev.effect.kind === 'swap') {
+    fly(ev.destinationTile, to, from);
+    fly(fmtNumber(ev.oldNumber), from, to);
+  } else if (ev.effect.kind === 'opswap') {
+    fly(ev.effect.dropped, from, to);
+  } else if (ev.effect.kind === 'pickup') {
+    fly(ev.destinationTile, to, to);
+  } else if (ev.effect.kind === 'none') {
+    const dest = tileNodes[to.y]?.[to.x] ?? null;
+    if (dest && dest.textContent !== '') fly(ev.destinationTile, from, to);
   }
 
   playerNumberNode.textContent = fmtNumber(state.number);
@@ -329,6 +420,14 @@ function showBlocked(direction: string) {
   obs.appendChild(line('flat', 'Blocked — edge of world.'));
 }
 
+function showBlockedHole(direction: string) {
+  const obs = els.observation;
+  obs.textContent = '';
+  obs.appendChild(line('', `You moved ${direction}.`));
+  obs.appendChild(line('', ''));
+  obs.appendChild(line('flat', 'Blocked — a hole. Consumed numbers cannot be moved onto.'));
+}
+
 function verboseObservation(move: MoveEvent): DocumentFragment {
   const frag = document.createDocumentFragment();
   frag.appendChild(line('', `You moved ${move.direction}.`));
@@ -337,6 +436,8 @@ function verboseObservation(move: MoveEvent): DocumentFragment {
   frag.appendChild(line('', ''));
   frag.appendChild(line('', `${fmtNumber(move.oldNumber)}  ${move.destinationTile}`));
   frag.appendChild(line('', `Pending: ${move.pendingAtEntry === null ? '—' : move.pendingAtEntry}`));
+  frag.appendChild(line('', `Armed: ${move.carriedAtEntry ?? '—'}`));
+  frag.appendChild(line('', `Effect: ${move.effect.kind}${move.effect.kind === 'opswap' ? ` (drops ${move.effect.dropped})` : ''}`));
   frag.appendChild(line('', `Result: ${move.valid ? fmtNumber(move.result) : 'INVALID'}`));
   const deltaNote = move.valid ? `  (Δ ${move.delta > 0 ? '+' : ''}${move.delta})` : '';
   frag.appendChild(line(
@@ -349,9 +450,12 @@ function verboseObservation(move: MoveEvent): DocumentFragment {
 function quietObservation(move: MoveEvent): DocumentFragment {
   const frag = document.createDocumentFragment();
   const glyph = move.valid ? (move.wentUp ? '↑' : move.delta < 0 ? '↓' : '—') : '✕';
-  const pending = state.engine.pending;
-  const held = pending === null ? '' : ` [${pending}]`;
-  frag.appendChild(line(move.valid ? statusClass(move) : 'down', `${glyph} ${fmtNumber(state.number)}${held}`));
+  const held: string[] = [];
+  if (move.pendingAtEntry !== null) held.push(`[${move.pendingAtEntry}]`);
+  const armed = state.engine.carried;
+  if (armed !== null) held.push(`⌁${armed}`);
+  const tail = held.length ? ` ${held.join(' ')}` : '';
+  frag.appendChild(line(move.valid ? statusClass(move) : 'down', `${glyph} ${fmtNumber(state.number)}${tail}`));
   return frag;
 }
 
@@ -452,6 +556,7 @@ function runContext(): RunContext {
     variantUpdated: v?.updated,
     variantHypothesis: v?.hypothesis,
     pending: state.engine.pending,
+    carried: state.engine.carried,
     appVersion: APP_VERSION,
   };
 }
@@ -471,6 +576,7 @@ function renderNotebook() {
         : 'Layout square (4 neighbours) — arrows / WASD / numpad · swipe dominant axis',
       `URL: ${ctx.url}`,
       `Pending: ${state.engine.pending === null ? '—' : state.engine.pending}`,
+      `Armed: ${state.engine.carried ?? '—'}`,
       v ? `Hypothesis: ${v.hypothesis}` : 'Custom rule × fail pairing.',
     ].join('\n');
   }
@@ -519,6 +625,7 @@ function fallbackCopy(text: string, done: (ok: boolean) => void) {
 function render() {
   placePlayer();
   renderPnum();
+  renderCarried();
   playerNode.classList.toggle('dead', state.over);
   renderStatus();
   if (els.feedbackLink) els.feedbackLink.href = feedbackHref();
@@ -540,6 +647,19 @@ function tryMove(name: string) {
     void playerNode.getBoundingClientRect();
     playerNode.classList.add('pop');
     showBlocked(name);
+    playCue('blocked');
+    flashVignette('blocked');
+    return;
+  }
+
+  // A hole left by a consumed number cannot be moved onto.
+  if (tileAt(next.x, next.y) === HOLE) {
+    playerNode.classList.remove('pop');
+    void playerNode.getBoundingClientRect();
+    playerNode.classList.add('pop');
+    showBlockedHole(name);
+    playCue('blocked');
+    flashVignette('blocked');
     return;
   }
 
@@ -555,6 +675,16 @@ function tryMove(name: string) {
 
   render();
   animateSuperpose(ev, from, state.pos);
+  renderCarried();
+  const cue = cueFor(ev);
+  if (ev.effect.kind === 'consume' && !ev.failed) {
+    playCue('consume', cue);
+    flashVignette('consume');
+    if (sound.enabled) setTimeout(() => flashVignette(cue), 130);
+  } else {
+    playCue(cue);
+    flashVignette(cue);
+  }
   showObservation(ev, ev.failed ? showRunOver(ev) : null);
   if (ev.failed) state.over = true;
   render();
@@ -574,6 +704,7 @@ function restart(message?: string) {
   state.over = false;
   fromLog = [];
   state.spent.clear();
+  state.matter.clear();
   buildGrid();
   syncUrl();
   render();
@@ -581,6 +712,7 @@ function restart(message?: string) {
   const variantNote = v ? ` Variant ${v.name}.` : '';
   els.observation.textContent = message || `World ${state.worldKey} — ${world().name}.${variantNote} Number = 0.${movementNote()}`;
   if (state.debug) renderNotebook();
+  playCue('start');
 }
 
 function syncUrl() {
@@ -626,7 +758,7 @@ function nextGenerated() {
 
 function nextRule() {
   if (!IS_HEX && !confirmWipe('rule')) return;
-  state.ruleKey = cycle(['replace', 'add', 'eval'], state.ruleKey);
+  state.ruleKey = cycle(['replace', 'add', 'eval', 'relay'], state.ruleKey);
   restart(`Collision rule → ${state.ruleKey} (${state.engine.rule.name}). Number = 0.`);
 }
 
@@ -737,6 +869,11 @@ document.addEventListener('keydown', (e) => {
   } else if (k === '/') {
     e.preventDefault();
     toggleDebug();
+  } else if (k === 'm') {
+    const on = sound.toggle();
+    const btn = document.querySelector('#help [data-action="sound"]');
+    if (btn instanceof HTMLElement) btn.classList.toggle('on', on);
+    if (on) playCue('start');
   } else if (k === 'n') {
     nextWorld();
   } else if (k === 'g') {
@@ -767,6 +904,11 @@ document.getElementById('help')?.addEventListener('click', (e) => {
   else if (action === 'rule') nextRule();
   else if (action === 'fail') nextFailure();
   else if (action === 'collapse') toggleCollapse();
+  else if (action === 'sound') {
+    const k = sound.toggle();
+    btn.classList.toggle('on', k);
+    if (k) playCue('start');
+  }
   else if (action === 'feedback') openFeedback();
 });
 
@@ -830,4 +972,5 @@ if (IS_HEX) {
 }
 
 if (state.debug) document.body.classList.add('debug');
+document.querySelector('#help [data-action="sound"]')?.classList.toggle('on', sound.enabled);
 restart();

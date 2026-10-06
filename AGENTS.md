@@ -175,8 +175,13 @@ modules in `src/`, bundled to committed IIFE files in `dist/` by esbuild
   feedback log, branching/extension musings
 - `src/engine.ts` — pure logic: `RULES` (collision rules:
   `superpose(currentNumber, tile, ctx) → result`) and `FAILURE_RULES`
-  (`failed(event) → reason or null`); appends event history per move
-- `src/world.ts` — hand-authored `WORLDS` (5×5 grids) and `generateWorld(seed)`
+  (`failed(event) → reason or null`); appends event history per move. Rules
+  may set `ctx.effect` (board edits, rendered by play.ts) and, for Relay,
+  `ctx.carried` (the armed operator)
+- `src/world.ts` — hand-authored `WORLDS` (5×5 grids), `generateWorld(seed)`,
+  and the board overlays (`createCollapseState`, `createMatterState`, `HOLE`)
+- `src/sound.ts` — pre-generated WebAudio cue kit (in-memory synthesized
+  buffers, no asset files); companion visual: the `#vignette` flash
 - `style.css` — looks
 
 ## Conventions & Patterns

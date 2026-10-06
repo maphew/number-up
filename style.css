@@ -146,6 +146,61 @@ body {
   fill: none;
 }
 
+.tile.hole {
+  fill: #4a4a55;
+  font-size: calc(var(--u) * 0.3);
+  animation: hole-in 260ms ease-out;
+}
+
+@keyframes hole-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+#player.armed .dot {
+  stroke: #7fb4ff;
+  stroke-width: calc(var(--u) * 0.05);
+}
+
+#player .carried {
+  fill: #7fb4ff;
+  font-size: calc(var(--u) * 0.17);
+  font-weight: 700;
+  font-family: inherit;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* Sound made visible: the felt signal of the last action blooms at the edge
+   of the screen, muted or not. */
+#vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  z-index: 60;
+  box-shadow: inset 0 0 24vmax 3vmax rgb(var(--vc, 0 0 0) / 0.5);
+}
+
+#vignette.on {
+  animation: vignette-cue 360ms ease-out;
+}
+
+#vignette.cue-happy { --vc: 95 211 122; }
+#vignette.cue-sad { --vc: 255 107 107; }
+#vignette.cue-pickup { --vc: 127 180 255; }
+#vignette.cue-consume { --vc: 5 5 8; }
+#vignette.cue-flat { --vc: 220 220 234; }
+#vignette.cue-over { --vc: 255 60 60; }
+#vignette.cue-blocked { --vc: 30 30 36; }
+#vignette.cue-start { --vc: 255 204 51; }
+
+@keyframes vignette-cue {
+  0% { opacity: 0; }
+  18% { opacity: 0.5; }
+  100% { opacity: 0; }
+}
+
 #player .pnum.pop {
   animation: pop 260ms ease-out;
 }

@@ -112,6 +112,16 @@ export const VARIANTS = {
     updated: '2026-10-02',
     collapse: true,
   },
+  relay: {
+    name: 'Relay',
+    tagline: 'numbers trade places; signs ride on you until spent',
+    how: 'Walk onto a number unarmed and you two swap places. Walk onto a sign to pick it up, now armed; the next number you touch takes its operator and is consumed, leaving a hole nothing can enter.',
+    rule: 'relay',
+    fail: 'none',
+    world: 'full',
+    hypothesis: 'You will start authoring collisions instead of reading them: grab a sign only when you already know which number it should hit, and use swap as free position-economy since nothing is ever a wall until you eat a hole into it. If the board still reads as a static obstacle field you dodge, possession needs stakes to become strategy.',
+    updated: '2026-10-06',
+  },
 } satisfies Record<string, Variant>;
 
 export type VariantId = keyof typeof VARIANTS;
@@ -123,6 +133,12 @@ function isVariantId(id: string): id is VariantId {
 }
 
 export const VARIANT_ORDER: VariantId[] = Object.keys(VARIANTS).filter(isVariantId);
+
+// Index page reads this: newest `updated` first, registry order breaks ties
+// (Array.sort is stable). Layout experiments stay pinned to the lab bench.
+export const GALLERY_ORDER: VariantId[] = [...VARIANT_ORDER].sort(
+  (a, b) => VARIANTS[b].updated.localeCompare(VARIANTS[a].updated),
+);
 
 export function getVariant(id: string): ResolvedVariant | null {
   if (!isVariantId(id)) return null;

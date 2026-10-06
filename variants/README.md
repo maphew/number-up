@@ -40,9 +40,13 @@ keep the fuller design register.
 
 | name | id | collision | failure | opens in | updated | notebook |
 |------|----|-----------|---------|----------|---------|----------|
+| Relay | `relay` | `relay` | `none` | world `full` | 2026-10-06 | [relay.md](relay.md) |
 | Rehearsal | `rehearsal` | `eval` | `none` | world b | 2026-09-30 | [rehearsal.md](rehearsal.md) |
 | Hoarder | `hoarder` | `add` | `none` | world `full` | 2026-09-30 | [hoarder.md](hoarder.md) |
 | Masquerade | `masquerade` | `replace` | `none` | world `full` | 2026-09-30 | [masquerade.md](masquerade.md) |
+
+The catalogue renders newest-first within each stakes group (by `updated`,
+see `GALLERY_ORDER` in `src/variants.ts`).
 
 Any rule/fail pairing not in the registry shows as **custom** in the game's
 VARIANT readout; it can still be reached with `?rule=` / `?fail=`.

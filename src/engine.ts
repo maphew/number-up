@@ -5,7 +5,24 @@ export type TileKind = 'op' | 'num' | 'floor';
 export interface MoveContext {
   pending: number | null;
   noOperand?: string;
+  // relay rule: the operator being carried, null when unarmed.
+  carried?: Operator | null;
+  // relay rule: what the destination tile becomes — play.ts renders board edits.
+  effect?: RuleEffect;
 }
+
+// What a relay move does to the board on top of changing Number.
+// `swap`: the destination NUMBER trades places with Number (play.ts paints the
+// old Number at the origin cell). `pickup`: the operator leaves its cell to ride
+// on Number. `opswap`: an armed Number trades its carried op for the new one
+// (play.ts drops `dropped` at the destination). `consume`: the touched NUMBER is
+// eaten — the cell becomes a hole, which can not be moved onto.
+export type RuleEffect =
+  | { kind: 'none' }
+  | { kind: 'swap' }
+  | { kind: 'pickup' }
+  | { kind: 'opswap'; dropped: Operator }
+  | { kind: 'consume' };
 
 export interface CollisionRule {
   name: string;
@@ -19,6 +36,8 @@ export interface AttemptBase {
   destinationTile: string;
   rule: string;
   pendingAtEntry: number | null;
+  carriedAtEntry: Operator | null;
+  effect: RuleEffect;
 }
 
 export interface ValidAttempt extends AttemptBase {
@@ -107,6 +126,27 @@ export const RULES = {
       return OPS[tile](currentNumber, ctx.pending);
     },
   },
+  relay: {
+    name: 'relay — swap · arm · consume',
+    superpose(currentNumber, tile, ctx) {
+      const armed = ctx.carried ?? null;
+      const kind = classify(tile);
+      if (kind === 'floor') return currentNumber;
+      if (kind === 'num') {
+        if (armed !== null) {
+          ctx.carried = null;
+          ctx.effect = { kind: 'consume' };
+          return OPS[armed](currentNumber, Number(tile));
+        }
+        ctx.effect = { kind: 'swap' };
+        return Number(tile);
+      }
+      if (!isOperator(tile)) return NaN;
+      ctx.carried = tile;
+      ctx.effect = armed === null ? { kind: 'pickup' } : { kind: 'opswap', dropped: armed };
+      return currentNumber;
+    },
+  },
   } satisfies Record<string, CollisionRule>;
 
 export type RuleName = keyof typeof RULES;
@@ -153,6 +193,7 @@ export interface Engine {
   readonly turn: number;
   readonly history: MoveEvent[];
   readonly pending: number | null;
+  readonly carried: Operator | null;
   reset(): void;
   attempt(currentNumber: number, direction: string, tile: string): MoveEvent;
 }
@@ -171,6 +212,7 @@ export function createEngine(ruleName: string, failureName: string): Engine {
   const rule: CollisionRule = RULES[resolvedRule];
   const failure: FailureRule = FAILURE_RULES[resolvedFailure];
   let pending: number | null = null;
+  let carried: Operator | null = null;
   let turn = 0;
   const history: MoveEvent[] = [];
 
@@ -196,14 +238,19 @@ export function createEngine(ruleName: string, failureName: string): Engine {
     get pending() {
       return pending;
     },
+    get carried() {
+      return carried;
+    },
     reset() {
       pending = null;
+      carried = null;
       turn = 0;
       history.length = 0;
     },
     attempt(currentNumber, direction, tile) {
       const pendingBefore = pending;
-      const ctx: MoveContext = { pending };
+      const carriedBefore = carried;
+      const ctx: MoveContext = { pending, carried: carriedBefore };
       let result: number;
       try {
         result = rule.superpose(currentNumber, tile, ctx);
@@ -211,7 +258,9 @@ export function createEngine(ruleName: string, failureName: string): Engine {
         result = NaN;
       }
       pending = ctx.pending;
+      carried = ctx.carried ?? null;
       const noOperand = ctx.noOperand;
+      const effect: RuleEffect = ctx.effect ?? { kind: 'none' };
       const valid = typeof result === 'number' && Number.isFinite(result);
       const base = {
         turn: ++turn,
@@ -220,6 +269,8 @@ export function createEngine(ruleName: string, failureName: string): Engine {
         destinationTile: tile,
         rule: rule.name,
         pendingAtEntry: pendingBefore,
+        carriedAtEntry: carriedBefore,
+        effect,
         noOperand,
       };
       const rounded = valid ? round(result) : null;

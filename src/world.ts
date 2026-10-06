@@ -66,6 +66,35 @@ export const WORLD_ORDER: WorldKey[] = ['full', 'a', 'b', 'c', 'd'];
 
 export const COLLAPSED_TILE = 'floor';
 
+// Relay rule (num-ak7): a number eaten by an armed operator becomes a hole —
+// impassable for the rest of the run.
+export const HOLE = '∅';
+
+export interface MatterState {
+  at(raw: string, x: number, y: number): string;
+  set(x: number, y: number, glyph: string): void;
+  clear(): void;
+}
+
+// Relay board edits (swap places, picked-up operators, consumed numbers,
+// dropped operators). Named cells override whatever the underlying world row
+// holds; an empty string is plain ground.
+export function createMatterState(): MatterState {
+  const cells = new Map<string, string>();
+  return {
+    at(raw, x, y) {
+      const m = cells.get(`${x},${y}`);
+      return m === undefined ? raw : m;
+    },
+    set(x, y, glyph) {
+      cells.set(`${x},${y}`, glyph);
+    },
+    clear() {
+      cells.clear();
+    },
+  };
+}
+
 export interface CollapseState {
   has(x: number, y: number): boolean;
   tile(raw: string, x: number, y: number): string;

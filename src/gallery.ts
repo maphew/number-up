@@ -1,4 +1,4 @@
-import { VARIANTS, VARIANT_ORDER, type ResolvedVariant } from './variants.ts';
+import { GALLERY_ORDER, VARIANTS, type ResolvedVariant } from './variants.ts';
 import { APP_VERSION } from './version.ts';
 
 function mustEl(id: string): HTMLElement {
@@ -51,8 +51,10 @@ if (gameParams.some((k) => params.has(k))) {
     return a;
   }
 
+  // Newest first within each stakes group (GALLERY_ORDER is sorted by
+  // `updated` descending); group order keeps the stakes narrative.
   for (const group of GROUPS) {
-    const ids = VARIANT_ORDER.filter((id) => VARIANTS[id].fail === group.fail);
+    const ids = GALLERY_ORDER.filter((id) => VARIANTS[id].fail === group.fail);
     if (!ids.length) continue;
     const h = document.createElement('h2');
     h.className = 'group-label';

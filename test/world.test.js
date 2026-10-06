@@ -4,8 +4,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createCollapseState, COLLAPSED_TILE, generateWorld, WORLDS, findStart } from '../src/world.ts';
-import { classify, RULES, FAILURE_RULES } from '../src/engine.ts';
+import { createCollapseState, COLLAPSED_TILE, createMatterState, generateWorld, WORLDS, findStart, HOLE } from '../src/world.ts';
+import { classify, createEngine, RULES, FAILURE_RULES } from '../src/engine.ts';
 import { VARIANTS, VARIANT_ORDER } from '../src/variants.ts';
 
 describe('collapse-to-floor state (review R2 opt-in experiment)', () => {
@@ -124,6 +124,47 @@ function longestRoute(world, rule, fail, cap = Infinity) {
   dfs(start.x, start.y, 0, null, 0);
   return best;
 }
+
+describe('relay board matter (num-ak7: swap · arm · consume)', () => {
+  it('named cells override the underlying world row; empty string is ground', () => {
+    const matter = createMatterState();
+    assert.equal(matter.at('6', 3, 2), '6');
+    matter.set(3, 2, '0');
+    assert.equal(matter.at('6', 3, 2), '0');
+    matter.set(3, 2, '');
+    assert.equal(matter.at('6', 3, 2), '');
+    matter.clear();
+    assert.equal(matter.at('6', 3, 2), '6');
+  });
+
+  // The board semantics play.ts applies from the engine's effect channel,
+  // mirrored here so the pure modules keep the contract without a DOM.
+  it('a consumed number leaves an impassable hole; a swap repopulates the origin cell', () => {
+    const engine = createEngine('relay', 'none');
+    const matter = createMatterState();
+
+    // start 0 → swap with 7: you become 7, origin cell holds 0
+    const swap = engine.attempt(0, 'up', '7');
+    assert.deepEqual(swap.effect, { kind: 'swap' });
+    matter.set(2, 2, swap.destinationTile);
+    matter.set(2, 1, '');
+    assert.equal(matter.at('.', 2, 2), '7');
+
+    // armed: pick up '+' from the world row
+    const pickup = engine.attempt(7, 'up', '+');
+    assert.deepEqual(pickup.effect, { kind: 'pickup' });
+    matter.set(2, 0, '');
+    assert.equal(engine.carried, '+');
+
+    // eat the 9: consumed, hole, unarmed again
+    const eat = engine.attempt(7, 'up', '9');
+    assert.equal(eat.result, 16);
+    assert.deepEqual(eat.effect, { kind: 'consume' });
+    matter.set(2, 0, HOLE);
+    assert.equal(engine.carried, null);
+    assert.equal(matter.at('9', 2, 0), HOLE);
+  });
+});
 
 describe('variant openings are playable on their hand-authored world', () => {
   for (const id of VARIANT_ORDER) {

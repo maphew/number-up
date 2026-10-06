@@ -139,6 +139,107 @@ describe('down failure rule: only a decrease ends the run', () => {
   });
 });
 
+describe('relay rule semantics (num-ak7: swap · arm · consume)', () => {
+  const RELAY = 'relay';
+
+  it('unarmed onto a number: numbers trade places (you become the tile, flat never)', () => {
+    const engine = createEngine(RELAY, 'none');
+    const ev = engine.attempt(1, 'up', '7');
+    assert.equal(ev.valid, true);
+    assert.equal(ev.result, 7);
+    assert.deepEqual(ev.effect, { kind: 'swap' });
+    assert.equal(engine.carried, null);
+  });
+
+  it('the swap carries the old Number to the origin cell via the effect channel', () => {
+    const engine = createEngine(RELAY, 'none');
+    const ev = engine.attempt(1, 'up', '7');
+    assert.equal(ev.destinationTile, '7'); // play.ts places this at the origin cell
+    assert.equal(ev.effect.kind, 'swap');
+  });
+
+  it('unarmed onto an operator: picked up and armed, Number unchanged', () => {
+    const engine = createEngine(RELAY, 'none');
+    const ev = engine.attempt(4, 'up', '+');
+    assert.equal(ev.valid, true);
+    assert.equal(ev.result, 4);
+    assert.deepEqual(ev.effect, { kind: 'pickup' });
+    assert.equal(engine.carried, '+');
+  });
+
+  it('armed onto a number: the carried operator applies and the tile is consumed', () => {
+    const engine = createEngine(RELAY, 'none');
+    engine.attempt(4, 'up', '+');
+    const ev = engine.attempt(4, 'up', '5');
+    assert.equal(ev.result, 9);
+    assert.deepEqual(ev.effect, { kind: 'consume' });
+    assert.equal(engine.carried, null); // the operator is spent in the application
+  });
+
+  it('each operator applies correctly (−, ×, ÷)', () => {
+    for (const [op, a, b, want] of [['−', 9, 4, 5], ['×', 3, 6, 18], ['÷', 18, 6, 3]]) {
+      const engine = createEngine(RELAY, 'none');
+      engine.attempt(1, 'up', op);
+      const ev = engine.attempt(Number(a), 'up', String(b));
+      assert.equal(ev.result, want, op);
+      assert.equal(ev.effect.kind, 'consume');
+    }
+  });
+
+  it('armed onto another operator: the carried op is traded for the new one', () => {
+    const engine = createEngine(RELAY, 'none');
+    engine.attempt(4, 'up', '+');
+    const ev = engine.attempt(4, 'up', '×');
+    assert.equal(ev.valid, true);
+    assert.equal(ev.result, 4);
+    assert.deepEqual(ev.effect, { kind: 'opswap', dropped: '+' });
+    assert.equal(engine.carried, '×');
+  });
+
+  it('floor/empty-ground tiles are plain moves and never disarm (hole sentinel included)', () => {
+    const engine = createEngine(RELAY, 'none');
+    engine.attempt(4, 'up', '+');
+    assert.equal(engine.attempt(4, 'up', 'floor').result, 4);
+    assert.equal(engine.carried, '+');
+    assert.equal(engine.attempt(4, 'up', '.').result, 4);
+  });
+
+  it('carried state survives until spent and clears on reset', () => {
+    const engine = createEngine(RELAY, 'none');
+    engine.attempt(4, 'up', '×');
+    assert.equal(engine.carried, '×');
+    engine.reset();
+    assert.equal(engine.carried, null);
+  });
+
+  it('events record carriedAtEntry like pendingAtEntry', () => {
+    const engine = createEngine(RELAY, 'none');
+    const first = engine.attempt(4, 'up', '+');
+    assert.equal(first.carriedAtEntry, null);
+    const second = engine.attempt(4, 'up', '5');
+    assert.equal(second.carriedAtEntry, '+');
+  });
+
+  it('relay under notUp: a downward swap fails, an upward consume passes', () => {
+    const engine = createEngine(RELAY, 'notUp');
+    const down = engine.attempt(9, 'up', '4');
+    assert.equal(down.failed, true);
+    assert.match(down.failReason, /DOWN/);
+
+    const engine2 = createEngine(RELAY, 'notUp');
+    engine2.attempt(1, 'up', '+');
+    const up = engine2.attempt(1, 'up', '5');
+    assert.equal(up.valid, true);
+    assert.equal(up.failed, false);
+  });
+
+  it('relay is reachable by URL key and in the RULES registry', () => {
+    const engine = createEngine('relay', 'none');
+    assert.equal(engine.ruleName, 'relay');
+    assert.match(engine.rule.name, /relay/i);
+  });
+});
+
 describe('createEngine wiring', () => {
   it('exposes the selected rule and failure rule registries', () => {
     const engine = createEngine('eval', 'notUp');

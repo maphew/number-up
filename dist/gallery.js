@@ -92,15 +92,28 @@
       hypothesis: "With re-entry fatal, you will plan routes instead of mashing loops. If world full becomes a 5-move puzzle with a best Number near 243, finiteness reads as routing, not as shortness.",
       updated: "2026-10-02",
       collapse: true
+    },
+    relay: {
+      name: "Relay",
+      tagline: "numbers trade places; signs ride on you until spent",
+      how: "Walk onto a number unarmed and you two swap places. Walk onto a sign to pick it up, now armed; the next number you touch takes its operator and is consumed, leaving a hole nothing can enter.",
+      rule: "relay",
+      fail: "none",
+      world: "full",
+      hypothesis: "You will start authoring collisions instead of reading them: grab a sign only when you already know which number it should hit, and use swap as free position-economy since nothing is ever a wall until you eat a hole into it. If the board still reads as a static obstacle field you dodge, possession needs stakes to become strategy.",
+      updated: "2026-10-06"
     }
   };
   function isVariantId(id) {
     return Object.prototype.hasOwnProperty.call(VARIANTS, id);
   }
   var VARIANT_ORDER = Object.keys(VARIANTS).filter(isVariantId);
+  var GALLERY_ORDER = [...VARIANT_ORDER].sort(
+    (a, b) => VARIANTS[b].updated.localeCompare(VARIANTS[a].updated)
+  );
 
   // src/version.ts
-  var APP_VERSION = "0.1.0";
+  var APP_VERSION = "0.2.0";
 
   // src/gallery.ts
   function mustEl(id) {
@@ -148,7 +161,7 @@
       { label: "open field: nothing can hurt you", fail: "none" }
     ];
     for (const group of GROUPS) {
-      const ids = VARIANT_ORDER.filter((id) => VARIANTS[id].fail === group.fail);
+      const ids = GALLERY_ORDER.filter((id) => VARIANTS[id].fail === group.fail);
       if (!ids.length) continue;
       const h = document.createElement("h2");
       h.className = "group-label";

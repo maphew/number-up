@@ -24,6 +24,7 @@ export interface RunContext {
   variantUpdated?: string;
   variantHypothesis?: string;
   pending?: number | null;
+  carried?: string | null;
   appVersion?: string;
 }
 
@@ -81,7 +82,8 @@ export function formatMoveLog(history: MoveEvent[], from?: (LoggedFrom | null)[]
     const at = from?.[i];
     const pos = at === undefined || at === null ? '' : ` from ${at.x},${at.y}`;
     const fail = ev.failed && ev.failReason ? `  ☠ ${ev.failReason}` : '';
-    return `${String(ev.turn).padStart(3)} ${ev.direction.padEnd(5)}${pos} ${fmtNum(ev.oldNumber)} ${ev.destinationTile} [${kind}] ${outcome} pending=${fmtPending(ev.pendingAtEntry)}${fail}`;
+    const arm = ev.carriedAtEntry == null ? '' : ` arm=${ev.carriedAtEntry}`;
+    return `${String(ev.turn).padStart(3)} ${ev.direction.padEnd(5)}${pos} ${fmtNum(ev.oldNumber)} ${ev.destinationTile} [${kind}] ${outcome} pending=${fmtPending(ev.pendingAtEntry)}${arm}${fail}`;
   });
 }
 
@@ -99,6 +101,7 @@ export function formatRunDump(ctx: RunContext, history: MoveEvent[], from?: (Log
     `Seed: ${ctx.seed === null ? '—' : String(ctx.seed)}`,
     `URL: ${ctx.url}`,
     `Number: ${fmtNum(ctx.number)}`,
+    ...(ctx.carried ? [`Armed operator: ${ctx.carried}`] : []),
     `Turns ${totals.turns} · peak ${totals.peak === null ? '—' : totals.peak} · final ${totals.final === null ? '—' : totals.final} · up ${totals.up} · down ${totals.down} · flat ${totals.flat} · invalid ${totals.invalid}`,
     '',
     'Log:',
