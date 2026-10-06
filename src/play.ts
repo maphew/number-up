@@ -96,6 +96,7 @@ let unit = CELL;
 const mail = document.getElementById('feedback-mail');
 const els = {
   number: mustEl('number'),
+  worldName: mustEl('world-name'),
   variantSub: document.getElementById('variant-sub-text'),
   position: mustEl('position'),
   ruleLabel: mustEl('rule-label'),
@@ -295,12 +296,14 @@ function setTileNode(x: number, y: number, glyph: string) {
 
 // applyEffect turns the rule's board effect into the matter overlay and
 // SVG state, so tileAt (and every re-render) sees the same board as play.ts.
+// The origin cell always receives your old Number as a real glyph (never '').
 function applyEffect(ev: MoveEvent, from: Pos, to: Pos) {
+  const originGlyph = fmtNumber(ev.oldNumber);
   switch (ev.effect.kind) {
     case 'swap':
-      state.matter.set(from.x, from.y, ev.destinationTile);
+      state.matter.set(from.x, from.y, originGlyph);
       state.matter.set(to.x, to.y, '');
-      setTileNode(from.x, from.y, ev.destinationTile);
+      setTileNode(from.x, from.y, originGlyph);
       setTileNode(to.x, to.y, '');
       break;
     case 'pickup':
@@ -361,10 +364,12 @@ function flashVignette(sig: Signal) {
 }
 
 // Sounds stagger when two phrases belong to one action (a chomp, then its
-// emotional colour), never overlapping on the same onset.
+// emotional colour), never overlapping on the same onset. If the context is
+// still unlocking, the delayed half is skipped — nothing may follow the first
+// cue into silence.
 function playCue(sig: Signal, delayed: Signal | null = null) {
-  sound.play(sig);
-  if (delayed !== null && sound.enabled) setTimeout(() => sound.play(delayed), 75);
+  const heard = sound.play(sig);
+  if (delayed !== null && heard) setTimeout(() => sound.play(delayed), 75);
 }
 
 function animateSuperpose(ev: MoveEvent, from: Pos, to: Pos) {
@@ -480,6 +485,7 @@ function showRunOver(ev: MoveEvent): DocumentFragment {
 
 function renderStatus() {
   els.number.textContent = fmtNumber(state.number);
+  els.worldName.textContent = world().name;
   els.position.textContent = `${state.pos.x},${state.pos.y}`;
   if (els.variantSub) {
     const v = currentVariant();

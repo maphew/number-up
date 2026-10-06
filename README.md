@@ -38,6 +38,7 @@ branching musings) live in `variants/`.
 
 | variant | collision | failure | in one line |
 |---------|-----------|---------|-------------|
+| Relay | `relay` | `down` | swap with numbers, pick up signs, spend them — consumption leaves holes |
 | Plateau | `replace` | `down` | become tiles; only shrinking ends you |
 | Cadence | `eval` | `down` | operators are verbs, without the flat-death |
 
@@ -45,7 +46,6 @@ branching musings) live in `variants/`.
 
 | variant | collision | failure | in one line |
 |---------|-----------|---------|-------------|
-| Relay | `relay` | `none` | swap with numbers, pick up signs, spend them — consumption leaves holes |
 | Rehearsal | `eval` | `none` | the verb grammar, stakes removed |
 | Hoarder | `add` | `none` | accumulation as a fidget toy |
 | Masquerade | `replace` | `none` | identity swap with nothing to lose |
@@ -81,9 +81,9 @@ The failure rule is a candidate too: <kbd>F</kbd> cycles `notUp → down → non
   not just the last ten moves)
 - Shortcut chips below the map (`R / N G C F X / @`) are clickable and perform
   each shortcut with mouse or touch
-- URL params: `?variant=verbs|accretion|becoming|fallout|plateau|cadence|rehearsal|hoarder|masquerade`
+- URL params: `?variant=verbs|accretion|becoming|fallout|plateau|cadence|relay|rehearsal|hoarder|masquerade`
   (sets rule, failure, and starting world; takes precedence) or the lower-level
-  `?world=full|a|b|c|d|gen&seed=N&rule=replace|add|eval&fail=notUp|down|none&debug=1`
+  `?world=full|a|b|c|d|gen&seed=N&rule=replace|add|eval|relay&fail=notUp|down|none&debug=1`
 - URL param `?collapse=1` (or `X` key / collapse chip): tiles collapse to floor
   after collision — opt-in experiment, default off; the `fallout` variant sets
   it on. Replay-safe: `?collapse=0` forces it off.

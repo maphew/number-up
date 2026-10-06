@@ -37,8 +37,8 @@ describe('registry integrity', () => {
 });
 
 describe('relay variant registration', () => {
-  it('is the named variant for relay × none', () => {
-    const v = variantFor('relay', 'none');
+  it('is the named variant for relay × down (flat moves are safe ground)', () => {
+    const v = variantFor('relay', 'down');
     assert.equal(v?.id, 'relay');
   });
 });

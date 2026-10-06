@@ -5,7 +5,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { RULES, FAILURE_RULES, createEngine } from '../src/engine.ts';
+import { classify, RULES, FAILURE_RULES, createEngine } from '../src/engine.ts';
 
 describe('eval rule semantics (current candidate: numeric)', () => {
   it('numeric tiles REPLACE current Number (not add)', () => {
@@ -139,6 +139,15 @@ describe('down failure rule: only a decrease ends the run', () => {
   });
 });
 
+describe('classify edge-cases (num-3mp: consumed cells must never read as numbers)', () => {
+  it("empty tile-state is floor, not number 0 (Number('') === 0 is the trap)", () => {
+    assert.equal(classify(''), 'floor');
+    assert.equal(classify('∅'), 'floor');
+    assert.equal(classify('floor'), 'floor');
+    assert.equal(classify('HOLE'), 'floor');
+  });
+});
+
 describe('relay rule semantics (num-ak7: swap · arm · consume)', () => {
   const RELAY = 'relay';
 
@@ -184,6 +193,24 @@ describe('relay rule semantics (num-ak7: swap · arm · consume)', () => {
       assert.equal(ev.result, want, op);
       assert.equal(ev.effect.kind, 'consume');
     }
+  });
+
+  it('unarmed onto vacated ground (empty tile-state): a plain flat move, never a consume', () => {
+    const engine = createEngine(RELAY, 'none');
+    engine.attempt(4, 'up', '+');
+    const ev = engine.attempt(4, 'up', '');
+    assert.equal(ev.valid, true);
+    assert.equal(ev.result, 4);
+    assert.equal(ev.delta, 0);
+    assert.deepEqual(ev.effect, { kind: 'none' });
+    assert.equal(engine.carried, '+'); // still armed — nothing was touched
+  });
+
+  it('unarmed onto vacated ground: swap destination glyph is never bare ground', () => {
+    const engine = createEngine(RELAY, 'none');
+    const ev = engine.attempt(5, 'up', '5');
+    assert.deepEqual(ev.effect, { kind: 'swap' });
+    assert.notEqual(ev.destinationTile, '');
   });
 
   it('armed onto another operator: the carried op is traded for the new one', () => {

@@ -1,15 +1,21 @@
 export interface World {
   name: string;
   rows: string[][];
+  // When this world's data was last recast (gallery cards show it per world).
+  // Generated worlds are ephemeral and leave this unset.
+  updated?: string;
 }
 
 export interface GeneratedWorld extends World {
   seed: number;
 }
 
+const WORLD_RECAST = '2026-10-02 19:50 PDT'; // num-ik9 rebuilt every hand-authored world
+
 export const WORLDS = {
   full: {
     name: 'Full — mixed grid',
+    updated: WORLD_RECAST,
     rows: [
       ['7', '+', '3', '×', '8'],
       ['−', '4', '5', '9', '+'],
@@ -20,6 +26,7 @@ export const WORLDS = {
   },
   a: {
     name: 'A — Number + Number',
+    updated: WORLD_RECAST,
     rows: [
       ['3', '8', '2', '5', '9'],
       ['6', '1', '7', '4', '2'],
@@ -30,6 +37,7 @@ export const WORLDS = {
   },
   b: {
     name: 'B — Number + Operator',
+    updated: WORLD_RECAST,
     rows: [
       ['×', '+', '+', '+', '×'],
       ['+', '+', '9', '+', '+'],
@@ -40,6 +48,7 @@ export const WORLDS = {
   },
   c: {
     name: 'C — UP vs DOWN',
+    updated: WORLD_RECAST,
     rows: [
       ['1', '2', '3', '4', '5'],
       ['10', '9', '8', '7', '6'],
@@ -50,6 +59,7 @@ export const WORLDS = {
   },
   d: {
     name: 'D — Failure',
+    updated: WORLD_RECAST,
     rows: [
       ['9', '−', '1', '×', '4'],
       ['+', '7', '×', '3', '8'],

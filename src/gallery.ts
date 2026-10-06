@@ -1,4 +1,5 @@
 import { GALLERY_ORDER, VARIANTS, type ResolvedVariant } from './variants.ts';
+import { WORLDS } from './world.ts';
 import { APP_VERSION } from './version.ts';
 
 function mustEl(id: string): HTMLElement {
@@ -41,12 +42,15 @@ if (gameParams.some((k) => params.has(k))) {
       <p class="tagline"></p>
       <p class="how"></p>
       <p class="meta"></p>
+      <p class="world"></p>
       <p class="hypothesis"></p>
       <p class="play">play →</p>`;
     setText(a, 'h2', `${v.name}${v.collapse ? ' ⚛' : ''}`);
     setText(a, '.tagline', v.tagline);
     setText(a, '.how', v.how);
-    setText(a, '.meta', `collision: ${v.rule} · failure: ${v.fail} · opens in world ${v.world || 'full'}${v.collapse ? ' · collapse-to-floor' : ''} · updated ${v.updated}`);
+    setText(a, '.meta', `collision: ${v.rule} · failure: ${v.fail}${v.collapse ? ' · collapse-to-floor' : ''} · variant updated ${v.updated}`);
+    const w = WORLDS[v.world];
+    setText(a, '.world', `opens in world ${v.world || 'full'} — ${w?.name ?? 'unknown'} · world data last modified ${w?.updated ?? '—'}`);
     setText(a, '.hypothesis', v.hypothesis);
     return a;
   }

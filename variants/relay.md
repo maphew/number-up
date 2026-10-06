@@ -1,9 +1,9 @@
 # Relay
 
-**relay × none** — numbers trade places; signs ride on you until spent
+**relay × down** — numbers trade places; signs ride on you until spent
 
 Play: <https://maphew.github.io/number-up/play.html?variant=relay>
-Registry: `src/variants.ts` → `VARIANTS.relay` (collision `relay`, failure `none`, world full)
+Registry: `src/variants.ts` → `VARIANTS.relay` (collision `relay`, failure `down`, world full)
 
 ## Hypothesis
 
@@ -34,8 +34,10 @@ engine state `carried` (`Operator | null`, next to `pending`) and a per-move
 - Armed or not, **floor / ground** tiles are plain moves; nothing disarms.
 - A **hole** (`∅`) cannot be moved onto — blocked like the edge of the world.
   You may be standing on one you just ate; only entry is forbidden.
-- Default pairing is `none` (open field), so try anything. `?rule=relay` with
-  any failure rule names a custom variant.
+- Default pairing is `down` (gentler stakes): flat swaps and equal-number
+  consumes are safe ground; only Number going DOWN, or an armed `÷0`,
+  ends the run. `?rule=relay` with any other failure rule names a custom
+  variant.
 
 Sound/feel note: Relay launched together with the sound cues and vignette
 (num-ak7). Picking up a sign is the *energised* cue; eating a number is a

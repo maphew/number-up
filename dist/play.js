@@ -11,6 +11,8 @@
     return Object.prototype.hasOwnProperty.call(OPS, tile);
   }
   function classify(tile) {
+    if (tile === "") return "floor";
+    if (tile === "HOLE" || tile === "\u2205") return "floor";
     if (isOperator(tile)) return "op";
     const n = Number(tile);
     return Number.isFinite(n) ? "num" : "floor";
@@ -197,9 +199,11 @@
   }
 
   // src/world.ts
+  var WORLD_RECAST = "2026-10-02 19:50 PDT";
   var WORLDS = {
     full: {
       name: "Full \u2014 mixed grid",
+      updated: WORLD_RECAST,
       rows: [
         ["7", "+", "3", "\xD7", "8"],
         ["\u2212", "4", "5", "9", "+"],
@@ -210,6 +214,7 @@
     },
     a: {
       name: "A \u2014 Number + Number",
+      updated: WORLD_RECAST,
       rows: [
         ["3", "8", "2", "5", "9"],
         ["6", "1", "7", "4", "2"],
@@ -220,6 +225,7 @@
     },
     b: {
       name: "B \u2014 Number + Operator",
+      updated: WORLD_RECAST,
       rows: [
         ["\xD7", "+", "+", "+", "\xD7"],
         ["+", "+", "9", "+", "+"],
@@ -230,6 +236,7 @@
     },
     c: {
       name: "C \u2014 UP vs DOWN",
+      updated: WORLD_RECAST,
       rows: [
         ["1", "2", "3", "4", "5"],
         ["10", "9", "8", "7", "6"],
@@ -240,6 +247,7 @@
     },
     d: {
       name: "D \u2014 Failure",
+      updated: WORLD_RECAST,
       rows: [
         ["9", "\u2212", "1", "\xD7", "4"],
         ["+", "7", "\xD7", "3", "8"],
@@ -420,7 +428,7 @@
       tagline: "numbers trade places; signs ride on you until spent",
       how: "Walk onto a number unarmed and you two swap places. Walk onto a sign to pick it up, now armed; the next number you touch takes its operator and is consumed, leaving a hole nothing can enter.",
       rule: "relay",
-      fail: "none",
+      fail: "down",
       world: "full",
       hypothesis: "You will start authoring collisions instead of reading them: grab a sign only when you already know which number it should hit, and use swap as free position-economy since nothing is ever a wall until you eat a hole into it. If the board still reads as a static obstacle field you dodge, possession needs stakes to become strategy.",
       updated: "2026-10-06"
@@ -697,6 +705,7 @@
   };
   function createSoundKit() {
     let enabled = true;
+    let unlocked = false;
     let ctx = null;
     let master = null;
     const buffers = /* @__PURE__ */ new Map();
@@ -733,9 +742,6 @@
     }
     function ensure() {
       if (ctx !== null && master !== null) {
-        if (ctx.state === "suspended") {
-          void ctx.resume();
-        }
         return;
       }
       const AC = window.AudioContext ?? window.webkitAudioContext;
@@ -757,19 +763,37 @@
       }
     }
     return {
+      // Returns whether the cue is reaching (or will reach) the speakers — a
+      // still-locked AudioContext answers no, so callers can skip scheduling
+      // second-half staggers that would land in silence.
       play(sig) {
-        if (!enabled) return;
+        if (!enabled) return false;
         ensure();
         const c = ctx;
         const m = master;
-        if (c === null || m === null) return;
-        if (c.state === "suspended") return;
+        if (c === null || m === null) return false;
+        if (c.state === "suspended") {
+          if (!unlocked) {
+            if (sig === "start") return false;
+            unlocked = true;
+          }
+          void c.resume().then(() => {
+            const buf2 = buffers.get(sig);
+            if (!buf2 || c.state === "suspended") return;
+            const src2 = c.createBufferSource();
+            src2.buffer = buf2;
+            if (master !== null) src2.connect(master);
+            src2.start();
+          });
+          return true;
+        }
         const buf = buffers.get(sig);
-        if (!buf) return;
+        if (!buf) return false;
         const src = c.createBufferSource();
         src.buffer = buf;
         src.connect(m);
         src.start();
+        return true;
       },
       toggle() {
         enabled = !enabled;
@@ -847,6 +871,7 @@
   var mail = document.getElementById("feedback-mail");
   var els = {
     number: mustEl("number"),
+    worldName: mustEl("world-name"),
     variantSub: document.getElementById("variant-sub-text"),
     position: mustEl("position"),
     ruleLabel: mustEl("rule-label"),
@@ -1017,11 +1042,12 @@
     node.classList.toggle("hole", glyph === HOLE);
   }
   function applyEffect(ev, from, to) {
+    const originGlyph = fmtNumber(ev.oldNumber);
     switch (ev.effect.kind) {
       case "swap":
-        state.matter.set(from.x, from.y, ev.destinationTile);
+        state.matter.set(from.x, from.y, originGlyph);
         state.matter.set(to.x, to.y, "");
-        setTileNode(from.x, from.y, ev.destinationTile);
+        setTileNode(from.x, from.y, originGlyph);
         setTileNode(to.x, to.y, "");
         break;
       case "pickup":
@@ -1077,8 +1103,8 @@
     v.classList.add("on");
   }
   function playCue(sig, delayed = null) {
-    sound.play(sig);
-    if (delayed !== null && sound.enabled) setTimeout(() => sound.play(delayed), 75);
+    const heard = sound.play(sig);
+    if (delayed !== null && heard) setTimeout(() => sound.play(delayed), 75);
   }
   function animateSuperpose(ev, from, to) {
     applyEffect(ev, from, to);
@@ -1180,6 +1206,7 @@
   }
   function renderStatus() {
     els.number.textContent = fmtNumber(state.number);
+    els.worldName.textContent = world().name;
     els.position.textContent = `${state.pos.x},${state.pos.y}`;
     if (els.variantSub) {
       const v = currentVariant();

@@ -132,6 +132,9 @@ npm test           # node:test suite (test/) — no build, no install needed
 npm run typecheck  # tsc --noEmit
 npm run build      # esbuild → dist/play.js + dist/gallery.js + source maps
 npm run verify     # typecheck + test + build
+# Bundle cache-busting: index.html/play.html load dist/*.js with ?v=<version>;
+# bump the query to the package.json version whenever the bundle ships, or
+# returning visitors keep reading the stale cached script.
 # Serve locally (then open http://localhost:8123), or just open play.html via file://
 python3 -m http.server 8123
 ```

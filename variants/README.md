@@ -33,6 +33,7 @@ keep the fuller design register.
 
 | name | id | collision | failure | opens in | updated | notebook |
 |------|----|-----------|---------|----------|---------|----------|
+| Relay | `relay` | `relay` | `down` | world `full` | 2026-10-06 | [relay.md](relay.md) |
 | Plateau | `plateau` | `replace` | `down` | world c | 2026-10-02 | [plateau.md](plateau.md) |
 | Cadence | `cadence` | `eval` | `down` | world b | 2026-10-02 | [cadence.md](cadence.md) |
 
@@ -40,7 +41,6 @@ keep the fuller design register.
 
 | name | id | collision | failure | opens in | updated | notebook |
 |------|----|-----------|---------|----------|---------|----------|
-| Relay | `relay` | `relay` | `none` | world `full` | 2026-10-06 | [relay.md](relay.md) |
 | Rehearsal | `rehearsal` | `eval` | `none` | world b | 2026-09-30 | [rehearsal.md](rehearsal.md) |
 | Hoarder | `hoarder` | `add` | `none` | world `full` | 2026-09-30 | [hoarder.md](hoarder.md) |
 | Masquerade | `masquerade` | `replace` | `none` | world `full` | 2026-09-30 | [masquerade.md](masquerade.md) |

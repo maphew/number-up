@@ -50,6 +50,8 @@ const MIN_ROUTE = {
   fallout: 7, // collapse makes re-entry fatal, so no-revisit is the true route
   plateau: 8,
   cadence: 8,
+  relay: 7, // static no-revisit DFS undercounts relay: swaps repopulate cells,
+            // so true routes revisit cells for new values; 7 is the floor
 };
 
 const DIRS = [['up', 0, -1], ['down', 0, 1], ['left', -1, 0], ['right', 1, 0]];

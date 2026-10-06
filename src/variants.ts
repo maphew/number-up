@@ -117,7 +117,7 @@ export const VARIANTS = {
     tagline: 'numbers trade places; signs ride on you until spent',
     how: 'Walk onto a number unarmed and you two swap places. Walk onto a sign to pick it up, now armed; the next number you touch takes its operator and is consumed, leaving a hole nothing can enter.',
     rule: 'relay',
-    fail: 'none',
+    fail: 'down',
     world: 'full',
     hypothesis: 'You will start authoring collisions instead of reading them: grab a sign only when you already know which number it should hit, and use swap as free position-economy since nothing is ever a wall until you eat a hole into it. If the board still reads as a static obstacle field you dodge, possession needs stakes to become strategy.',
     updated: '2026-10-06',

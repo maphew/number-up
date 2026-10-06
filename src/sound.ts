@@ -13,7 +13,7 @@ export type Signal =
   | 'start';   // fresh run
 
 export interface SoundKit {
-  play(sig: Signal): void;
+  play(sig: Signal): boolean;
   toggle(): boolean;
   readonly enabled: boolean;
 }
@@ -104,6 +104,7 @@ const RECIPES: Record<Signal, { dur: number; voices: Voice[] }> = {
 
 export function createSoundKit(): SoundKit {
   let enabled = true;
+  let unlocked = false; // a user gesture has opened the AudioContext at least once
   let ctx: AudioContext | null = null;
   let master: GainNode | null = null;
   const buffers = new Map<Signal, AudioBuffer>();
@@ -142,11 +143,6 @@ export function createSoundKit(): SoundKit {
 
   function ensure(): void {
     if (ctx !== null && master !== null) {
-      if (ctx.state === 'suspended') {
-        // Resuming needs a user gesture; drop cues queued before one exists
-        // (e.g. the load-time start cue) so they never play late.
-        void ctx.resume();
-      }
       return;
     }
     const AC = window.AudioContext ?? (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -169,19 +165,41 @@ export function createSoundKit(): SoundKit {
   }
 
   return {
-    play(sig) {
-      if (!enabled) return;
+    // Returns whether the cue is reaching (or will reach) the speakers — a
+    // still-locked AudioContext answers no, so callers can skip scheduling
+    // second-half staggers that would land in silence.
+    play(sig): boolean {
+      if (!enabled) return false;
       ensure();
       const c = ctx;
       const m = master;
-      if (c === null || m === null) return;
-      if (c.state === 'suspended') return; // no gesture yet; the vignette carries the cue
+      if (c === null || m === null) return false;
+      // The first user gesture (a move, a key, a tap) may find the context
+      // suspended; resume it and play that move's cue on it. Pre-gesture cues
+      // only ever come from restart(), which runs on load — skip those so
+      // nothing plays late.
+      if (c.state === 'suspended') {
+        if (!unlocked) {
+          if (sig === 'start') return false;
+          unlocked = true;
+        }
+        void c.resume().then(() => {
+          const buf = buffers.get(sig);
+          if (!buf || c.state === 'suspended') return; // the vignette carries it
+          const src = c.createBufferSource();
+          src.buffer = buf;
+          if (master !== null) src.connect(master);
+          src.start();
+        });
+        return true;
+      }
       const buf = buffers.get(sig);
-      if (!buf) return;
+      if (!buf) return false;
       const src = c.createBufferSource();
       src.buffer = buf;
       src.connect(m);
       src.start();
+      return true;
     },
     toggle() {
       enabled = !enabled;

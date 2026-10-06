@@ -98,7 +98,7 @@
       tagline: "numbers trade places; signs ride on you until spent",
       how: "Walk onto a number unarmed and you two swap places. Walk onto a sign to pick it up, now armed; the next number you touch takes its operator and is consumed, leaving a hole nothing can enter.",
       rule: "relay",
-      fail: "none",
+      fail: "down",
       world: "full",
       hypothesis: "You will start authoring collisions instead of reading them: grab a sign only when you already know which number it should hit, and use swap as free position-economy since nothing is ever a wall until you eat a hole into it. If the board still reads as a static obstacle field you dodge, possession needs stakes to become strategy.",
       updated: "2026-10-06"
@@ -111,6 +111,66 @@
   var GALLERY_ORDER = [...VARIANT_ORDER].sort(
     (a, b) => VARIANTS[b].updated.localeCompare(VARIANTS[a].updated)
   );
+
+  // src/world.ts
+  var WORLD_RECAST = "2026-10-02 19:50 PDT";
+  var WORLDS = {
+    full: {
+      name: "Full \u2014 mixed grid",
+      updated: WORLD_RECAST,
+      rows: [
+        ["7", "+", "3", "\xD7", "8"],
+        ["\u2212", "4", "5", "9", "+"],
+        ["2", "3", ".", "6", "+"],
+        ["+", "5", "4", "1", "\xD7"],
+        ["8", "\u2212", "3", "+", "7"]
+      ]
+    },
+    a: {
+      name: "A \u2014 Number + Number",
+      updated: WORLD_RECAST,
+      rows: [
+        ["3", "8", "2", "5", "9"],
+        ["6", "1", "7", "4", "2"],
+        ["0", "5", ".", "4", "3"],
+        ["1", "4", "8", "2", "6"],
+        ["5", "7", "0", "3", "8"]
+      ]
+    },
+    b: {
+      name: "B \u2014 Number + Operator",
+      updated: WORLD_RECAST,
+      rows: [
+        ["\xD7", "+", "+", "+", "\xD7"],
+        ["+", "+", "9", "+", "+"],
+        ["+", "6", ".", "7", "+"],
+        ["+", "+", "3", "+", "+"],
+        ["\xD7", "+", "+", "+", "\xD7"]
+      ]
+    },
+    c: {
+      name: "C \u2014 UP vs DOWN",
+      updated: WORLD_RECAST,
+      rows: [
+        ["1", "2", "3", "4", "5"],
+        ["10", "9", "8", "7", "6"],
+        ["11", "12", ".", "14", "15"],
+        ["20", "19", "18", "17", "16"],
+        ["21", "22", "23", "24", "25"]
+      ]
+    },
+    d: {
+      name: "D \u2014 Failure",
+      updated: WORLD_RECAST,
+      rows: [
+        ["9", "\u2212", "1", "\xD7", "4"],
+        ["+", "7", "\xD7", "3", "8"],
+        ["\xD7", "2", ".", "6", "\u2212"],
+        ["5", "\xF7", "0", "+", "9"],
+        ["3", "\xD7", "8", "\u2212", "2"]
+      ]
+    }
+  };
 
   // src/version.ts
   var APP_VERSION = "0.2.0";
@@ -142,12 +202,15 @@
       <p class="tagline"></p>
       <p class="how"></p>
       <p class="meta"></p>
+      <p class="world"></p>
       <p class="hypothesis"></p>
       <p class="play">play \u2192</p>`;
       setText(a, "h2", `${v.name}${v.collapse ? " \u269B" : ""}`);
       setText(a, ".tagline", v.tagline);
       setText(a, ".how", v.how);
-      setText(a, ".meta", `collision: ${v.rule} \xB7 failure: ${v.fail} \xB7 opens in world ${v.world || "full"}${v.collapse ? " \xB7 collapse-to-floor" : ""} \xB7 updated ${v.updated}`);
+      setText(a, ".meta", `collision: ${v.rule} \xB7 failure: ${v.fail}${v.collapse ? " \xB7 collapse-to-floor" : ""} \xB7 variant updated ${v.updated}`);
+      const w = WORLDS[v.world];
+      setText(a, ".world", `opens in world ${v.world || "full"} \u2014 ${w?.name ?? "unknown"} \xB7 world data last modified ${w?.updated ?? "\u2014"}`);
       setText(a, ".hypothesis", v.hypothesis);
       return a;
     };

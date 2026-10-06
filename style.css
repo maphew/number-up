@@ -503,6 +503,12 @@ body.debug .stats .debug-only {
 .card .meta {
   color: var(--dim);
   font-size: 11px;
+  margin: 0 0 4px;
+}
+
+.card .world {
+  color: var(--dim);
+  font-size: 11px;
   margin: 0 0 8px;
 }
 

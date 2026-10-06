@@ -79,6 +79,8 @@ export function isOperator(tile: string): tile is Operator {
 }
 
 export function classify(tile: string): TileKind {
+  if (tile === '') return 'floor'; // relay vacated cells: Number('') === 0 must never trap us
+  if (tile === 'HOLE' || tile === '∅') return 'floor';
   if (isOperator(tile)) return 'op';
   const n = Number(tile);
   return Number.isFinite(n) ? 'num' : 'floor';
