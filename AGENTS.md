@@ -83,9 +83,10 @@ Test runner: `node:test` + `node:assert` (stdlib only). `npm test` needs no
 `npm install` and no build; it imports `src/engine.ts` directly (Node strips
 TS types natively, requires Node ≥22.18/23.6). No vitest/jest — a prototype
 this small should not acquire a heavy test toolchain for pure-logic coverage.
-Scope: pure-logic modules only — engine, world, variants, lattice, debug,
+Scope: pure-logic modules only — engine, world, variants, lattice, debug, fit,
 choosey composition (`test/*.test.js`). Do NOT attempt DOM coverage of
-`src/play.ts` or the pages — there is no DOM test harness.
+`src/play.ts` or the pages — there is no DOM test harness (page behaviour is
+verified ad hoc with the jsdom recipe above).
 
 No browser is available in agent sandboxes (cached playwright chromium won't
 launch; firefox is an uninstalled snap shim). To verify page behaviour, follow
@@ -139,6 +140,12 @@ modules in `src/`, bundled to committed IIFE files in `dist/` by esbuild
   and the board overlays (`createCollapseState`, `createMatterState`, `HOLE`)
 - `src/debug.ts` — the `/` debug-panel notebook: run totals, full move log,
   copy-run dump for notebooks and bug reports
+- `src/fit.ts` — pure player-mark fit maths (`digitBand` + `fitFontSize` +
+  `pnumFont`): the bare amber numeral IS the player (no disc), sized by
+  digit-band and clamped to its cell's ink budget; `play.ts` measures the
+  advance ratio at runtime and passes it in. `test/fit.test.js`. The header
+  NUMBER readout is debug-only; the up/down flash lives on the board mark.
+  Notebook (num-qhf): `experiments/player-mark.md`
 - `src/lattice.ts` — square and hex board geometry behind one interface
   (centres, steps, swipe resolution); `?layout=hex` swaps the lattice;
   experiment notes in `layouts/hex.md`

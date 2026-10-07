@@ -411,6 +411,24 @@
     return { x: m, y: m };
   }
 
+  // src/fit.ts
+  var INK = 0.94;
+  var BAND_BASE = [0.5, 0.44, 0.36];
+  function digitBand(chars) {
+    if (chars <= 2) return 0;
+    if (chars === 3) return 1;
+    return 2;
+  }
+  function fitFontSize(digitCount, advanceRatio2, maxWidth) {
+    return maxWidth / (advanceRatio2 * digitCount);
+  }
+  function pnumFont(chars, advanceRatio2, cellSize) {
+    const band = digitBand(chars);
+    const base = BAND_BASE[band] * cellSize;
+    const max = fitFontSize(chars, advanceRatio2, cellSize * INK);
+    return { fontSize: Math.min(base, max), band };
+  }
+
   // src/variants.ts
   var VARIANTS = {
     verbs: {
@@ -575,7 +593,7 @@
     return fails.map((f) => FAILURE_SHORT[f] ?? f).join(" + ") || "nothing can end it";
   }
   var GLOSSARY = [
-    ["you", "the dot on the board \u2014 and the dot is your number."],
+    ["you", "the amber numeral on the board \u2014 it IS your number, and it grows in steps as you do."],
     ["sign", "any of the four math tiles: + \u2212 \xD7 \xF7."],
     ["holding a number", "you picked a number up by touching it; the next sign will use it."],
     ["carrying a sign", "you stepped on a sign and it came with you, waiting to be spent."],
@@ -1024,7 +1042,7 @@
   }
 
   // src/version.ts
-  var APP_VERSION = "0.3.0";
+  var APP_VERSION = "0.4.0";
 
   // src/play.ts
   function mustEl(id) {
@@ -1134,6 +1152,26 @@
   var playerNumberNode;
   var playerCarriedNode;
   var fxLayer;
+  var ADVANCE_RATIO_GUESS = 0.6;
+  var advanceRatio = ADVANCE_RATIO_GUESS;
+  function measureAdvanceRatio() {
+    try {
+      const probe = ns("text", { x: -999, y: -999, class: "probe" });
+      probe.textContent = "0123456789";
+      probe.style.fontSize = "100px";
+      probe.style.visibility = "hidden";
+      svg.appendChild(probe);
+      const width = probe.getComputedTextLength();
+      probe.remove();
+      const ratio = width / (probe.textContent.length * 100);
+      if (Number.isFinite(ratio) && ratio > 0.1 && ratio < 2) advanceRatio = ratio;
+    } catch {
+    }
+  }
+  function calibrateAdvanceRatio() {
+    measureAdvanceRatio();
+    if (playerNumberNode) renderPnum();
+  }
   function world() {
     if (state.worldKey === "gen") {
       const seed = state.genSeed;
@@ -1209,7 +1247,6 @@
     fxLayer = ns("g", { id: "fx" });
     svg.appendChild(fxLayer);
     playerNode = ns("g", { id: "player" });
-    playerNode.appendChild(ns("circle", { cx: 0, cy: 0, r: unit * 0.3, class: "dot" }));
     playerNumberNode = ns("text", { x: 0, y: 1, class: "pnum" });
     playerNode.appendChild(playerNumberNode);
     playerCarriedNode = ns("text", { x: 0, y: -unit * 0.42, class: "carried" });
@@ -1249,8 +1286,11 @@
     return s.length > 6 ? n.toExponential(2) : s;
   }
   function renderPnum() {
-    playerNumberNode.textContent = fmtNumber(state.number);
-    playerNumberNode.classList.toggle("long", playerNumberNode.textContent.length > 4);
+    const text = fmtNumber(state.number);
+    playerNumberNode.textContent = text;
+    const fit = pnumFont(text.length, advanceRatio, IS_HEX ? unit * Math.sqrt(3) : unit);
+    playerNumberNode.style.fontSize = `${fit.fontSize}px`;
+    playerNode.dataset.band = String(fit.band);
   }
   function renderCarried() {
     const op = state.engine.carried;
@@ -1263,10 +1303,15 @@
     if (ev.delta < 0) return "down";
     return "flat";
   }
+  var STATUS_CLASSES = ["up", "down", "flat"];
   function flashStatus(cls) {
+    for (const c of STATUS_CLASSES) playerNumberNode.classList.remove(c);
+    void playerNumberNode.getBoundingClientRect();
+    playerNumberNode.classList.add(cls);
+    setTimeout(() => playerNumberNode.classList.remove(cls), 450);
     els.number.classList.remove("up", "down", "flat");
     void els.number.offsetWidth;
-    if (cls) els.number.classList.add(cls);
+    els.number.classList.add(cls);
     setTimeout(() => els.number.classList.remove(cls), 450);
   }
   function deltaGlyph(ev) {
@@ -1360,8 +1405,7 @@
       const dest = tileNodes[to.y]?.[to.x] ?? null;
       if (dest && dest.textContent !== "") fly(ev.destinationTile, from, to);
     }
-    playerNumberNode.textContent = fmtNumber(state.number);
-    playerNumberNode.classList.toggle("long", (playerNumberNode.textContent ?? "").length > 4);
+    renderPnum();
     playerNumberNode.classList.remove("pop");
     void playerNumberNode.getBoundingClientRect();
     playerNumberNode.classList.add("pop");
@@ -2038,6 +2082,10 @@ What happened / what should have happened:
   var rulesRefHost = document.getElementById("rules-ref");
   if (rulesRefHost) renderRulesReference(rulesRefHost, (v) => `play.html?variant=${v.id}`);
   buildChooseyPanel();
+  measureAdvanceRatio();
   restart();
+  if (typeof document?.fonts?.ready?.then === "function") {
+    void document.fonts.ready.then(calibrateAdvanceRatio);
+  }
 })();
 //# sourceMappingURL=play.js.map

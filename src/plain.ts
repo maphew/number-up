@@ -61,7 +61,7 @@ export function failsJoined(fails: readonly string[]): string {
 
 // The few words the game uses, in plain terms.
 export const GLOSSARY: [string, string][] = [
-  ['you', 'the dot on the board — and the dot is your number.'],
+  ['you', 'the amber numeral on the board — it IS your number, and it grows in steps as you do.'],
   ['sign', 'any of the four math tiles: + − × ÷.'],
   ['holding a number', 'you picked a number up by touching it; the next sign will use it.'],
   ['carrying a sign', 'you stepped on a sign and it came with you, waiting to be spent.'],

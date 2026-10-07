@@ -119,27 +119,39 @@ body {
   fill: #7fb4ff;
 }
 
-.dot {
-  fill: var(--dot);
-}
-
 #player {
   transition: transform 130ms ease-out;
 }
 
+/* The player mark is the Number itself (num-qhf): a bare amber numeral,
+   bolder and band-scaled (src/fit.ts decides the px), outlined against the
+   panel so it can never be mistaken for an ordinary tile. The size is set
+   inline by the renderer; CSS carries the identity treatment. */
 #player .pnum {
-  fill: #14140f;
-  font-size: calc(var(--u) * 0.3);
+  fill: var(--dot);
   font-weight: 700;
   font-family: inherit;
   text-anchor: middle;
   dominant-baseline: central;
   transform-box: fill-box;
   transform-origin: center;
+  paint-order: stroke fill;
+  stroke: var(--panel);
+  stroke-linejoin: round;
+  stroke-width: 0.09em;
+  transition: fill 150ms;
 }
 
-#player .pnum.long {
-  font-size: calc(var(--u) * 0.16);
+#player .pnum.up { fill: var(--up); }
+#player .pnum.down { fill: var(--down); }
+#player .pnum.flat { fill: var(--flat); }
+
+#player.dead .pnum {
+  fill: #b9b9c6;
+}
+
+#player.armed .pnum {
+  stroke: #7fb4ff;
 }
 
 .tile.spent {
@@ -155,11 +167,6 @@ body {
 @keyframes hole-in {
   0% { opacity: 0; }
   100% { opacity: 1; }
-}
-
-#player.armed .dot {
-  stroke: #7fb4ff;
-  stroke-width: calc(var(--u) * 0.05);
 }
 
 #player .carried {
@@ -203,14 +210,6 @@ body {
 
 #player .pnum.pop {
   animation: pop 260ms ease-out;
-}
-
-#player.dead .dot {
-  fill: #55555f;
-}
-
-#player.dead .pnum {
-  fill: #b9b9c6;
 }
 
 @keyframes pop {

@@ -1,5 +1,6 @@
 import { createChooseyEngine, createEngine, FAILURE_RULES, isOperator, RULES, type FailureName, type MoveEvent, type RuleName } from './engine.ts';
 import { createCollapseState, createMatterState, findStart, generateWorld, HOLE, WORLDS, WORLD_ORDER, type MatterState, type World, type WorldKey } from './world.ts';
+import { pnumFont } from './fit.ts';
 import { getVariant, variantFor } from './variants.ts';
 import { COLLAPSE_LONG, FAILURE_LONG, FAILURE_SHORT, RULE_LONG, RULE_SHORT, failsJoined, renderRulesReference, rulesJoined } from './plain.ts';
 import { createHexLattice, createSquareLattice, type Lattice, type Pos } from './lattice.ts';
@@ -150,6 +151,35 @@ let playerNumberNode: SVGElement;
 let playerCarriedNode: SVGElement;
 let fxLayer: SVGElement;
 
+// The advance ratio (glyph width / font-size) of the monospace face both
+// pages render in. Measured on a real numeral, never guessed (num-qhf);
+// 0.6 is the emergency default only for embeddings with no text-metric API.
+const ADVANCE_RATIO_GUESS = 0.6;
+let advanceRatio = ADVANCE_RATIO_GUESS;
+
+function measureAdvanceRatio(): void {
+  try {
+    const probe = ns('text', { x: -999, y: -999, class: 'probe' });
+    probe.textContent = '0123456789';
+    probe.style.fontSize = '100px';
+    probe.style.visibility = 'hidden';
+    svg.appendChild(probe);
+    const width = probe.getComputedTextLength();
+    probe.remove();
+    const ratio = width / (probe.textContent.length * 100);
+    if (Number.isFinite(ratio) && ratio > 0.1 && ratio < 2) advanceRatio = ratio;
+  } catch {
+    /* keep the guess */
+  }
+}
+
+// Fonts can settle after the first measurement; both pass through here so a
+// re-measure re-sizes the live mark without a rebuild.
+function calibrateAdvanceRatio(): void {
+  measureAdvanceRatio();
+  if (playerNumberNode) renderPnum();
+}
+
 function world(): World {
   if (state.worldKey === 'gen') {
     const seed = state.genSeed;
@@ -239,8 +269,10 @@ function buildGrid() {
   fxLayer = ns('g', { id: 'fx' });
   svg.appendChild(fxLayer);
 
+  // The player mark is the Number itself (num-qhf): a bare amber numeral,
+  // no disc. The fit maths (src/fit.ts) sizes it by digit band, clamped to
+  // the cell's ink budget, so a big you fills your cell and stops there.
   playerNode = ns('g', { id: 'player' });
-  playerNode.appendChild(ns('circle', { cx: 0, cy: 0, r: unit * 0.3, class: 'dot' }));
   playerNumberNode = ns('text', { x: 0, y: 1, class: 'pnum' });
   playerNode.appendChild(playerNumberNode);
   playerCarriedNode = ns('text', { x: 0, y: -unit * 0.42, class: 'carried' });
@@ -285,8 +317,11 @@ function fmtNumber(n: number): string {
 }
 
 function renderPnum() {
-  playerNumberNode.textContent = fmtNumber(state.number);
-  playerNumberNode.classList.toggle('long', playerNumberNode.textContent.length > 4);
+  const text = fmtNumber(state.number);
+  playerNumberNode.textContent = text;
+  const fit = pnumFont(text.length, advanceRatio, IS_HEX ? unit * Math.sqrt(3) : unit);
+  playerNumberNode.style.fontSize = `${fit.fontSize}px`;
+  playerNode.dataset.band = String(fit.band);
 }
 
 function renderCarried() {
@@ -302,10 +337,19 @@ function statusClass(ev: MoveEvent): string {
   return 'flat';
 }
 
+// Up/down/flat lives where the Number lives (num-qhf): the board mark
+// flashes, and the debug-only header readout keeps the same signal for
+// whoever is reading the notes.
+const STATUS_CLASSES = ['up', 'down', 'flat'];
+
 function flashStatus(cls: string) {
+  for (const c of STATUS_CLASSES) playerNumberNode.classList.remove(c);
+  void playerNumberNode.getBoundingClientRect();
+  playerNumberNode.classList.add(cls);
+  setTimeout(() => playerNumberNode.classList.remove(cls), 450);
   els.number.classList.remove('up', 'down', 'flat');
   void els.number.offsetWidth;
-  if (cls) els.number.classList.add(cls);
+  els.number.classList.add(cls);
   setTimeout(() => els.number.classList.remove(cls), 450);
 }
 
@@ -417,8 +461,7 @@ function animateSuperpose(ev: MoveEvent, from: Pos, to: Pos) {
     if (dest && dest.textContent !== '') fly(ev.destinationTile, from, to);
   }
 
-  playerNumberNode.textContent = fmtNumber(state.number);
-  playerNumberNode.classList.toggle('long', (playerNumberNode.textContent ?? '').length > 4);
+  renderPnum();
   playerNumberNode.classList.remove('pop');
   void playerNumberNode.getBoundingClientRect();
   playerNumberNode.classList.add('pop');
@@ -1179,4 +1222,10 @@ document.querySelector('#help [data-action="sound"]')?.classList.toggle('on', so
 const rulesRefHost = document.getElementById('rules-ref');
 if (rulesRefHost) renderRulesReference(rulesRefHost, (v) => `play.html?variant=${v.id}`);
 buildChooseyPanel();
+// Measure the real numeral advance before the first paint of the mark, then
+// again once fonts settle (system stacks can swap when a preferred face loads).
+measureAdvanceRatio();
 restart();
+if (typeof document?.fonts?.ready?.then === 'function') {
+  void document.fonts.ready.then(calibrateAdvanceRatio);
+}

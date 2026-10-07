@@ -2,7 +2,9 @@
 
 A design-laboratory prototype. The full plan and intent live in `_the_beginning.md`.
 
-The player is a central dot, and the dot **is** the current Number. Moving into a
+The player **is** the current Number: an amber numeral on the board that grows
+in digit bands as you do (there is no disc, and no header readout in normal
+play — the board mark is the one true readout). Moving into a
 cell is a superposition event: current Number + destination tile visibly interact
 and a resulting Number emerges. What the operators mean, and what failure means,
 are open questions — the prototype exists to let you feel candidate answers.
@@ -173,6 +175,11 @@ A collection of hand-authored maps plus a generator; `N` cycles them.
   `?v=` cache-bust stamps and `APP_VERSION` in agreement with package.json.
 - **Sound cues**: `src/sound.ts` — pre-generated WebAudio kit (in-memory
   synthesized buffers, no asset files); the `#vignette` flash is its visual twin.
+- **Player mark fit**: `src/fit.ts` — pure digit-band + ink-budget maths
+  (`digitBand` 1–2/3/4+, `fitFontSize`, `pnumFont`) that sizes the bare
+  numeral you play as; `play.ts` measures the real monospace advance ratio at
+  runtime and passes it in. Covered by `test/fit.test.js`. The how-and-why
+  notebook (num-qhf) lives in `experiments/player-mark.md`.
 - **Wiring, rendering, animation, input**: `src/play.ts`; looks: `style.css`.
 - **Front page**: `index.html` + `src/gallery.ts` (→ `dist/gallery.js`) — the
   catalogue, rendered from `src/variants.ts`. The game page is `play.html`;

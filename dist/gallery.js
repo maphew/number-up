@@ -188,7 +188,7 @@
   };
 
   // src/version.ts
-  var APP_VERSION = "0.3.0";
+  var APP_VERSION = "0.4.0";
 
   // src/engine.ts
   var OPS = {
@@ -337,7 +337,7 @@
     gen: "A random 5\xD75 map. The same seed always makes the same map."
   };
   var GLOSSARY = [
-    ["you", "the dot on the board \u2014 and the dot is your number."],
+    ["you", "the amber numeral on the board \u2014 it IS your number, and it grows in steps as you do."],
     ["sign", "any of the four math tiles: + \u2212 \xD7 \xF7."],
     ["holding a number", "you picked a number up by touching it; the next sign will use it."],
     ["carrying a sign", "you stepped on a sign and it came with you, waiting to be spent."],
