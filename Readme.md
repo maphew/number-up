@@ -19,7 +19,7 @@ with mouse or touch.
 ## Variants
 
 Each variant pairs a collision rule with a failure rule and a starting world,
-and carries a hypothesis it exists to test. The registry in `variants.js` is
+and carries a hypothesis it exists to test. The registry in `src/variants.ts` is
 the single source of truth; per-variant notebooks (hypothesis, feedback,
 branching musings) live in `variants/`.
 
@@ -154,7 +154,7 @@ A collection of hand-authored maps plus a generator; `N` cycles them.
   the run ends when Number fails to go UP or becomes invalid), `down` (the
   gentler candidate: the run ends only when Number goes DOWN or becomes
   invalid, so flat is safe ground), and `none`.
-- **Test worlds**: `world.js` → `WORLDS`. Hand-authored 5×5 rows of tiles
+- **Test worlds**: `src/world.ts` → `WORLDS`. Hand-authored 5×5 rows of tiles
   (`+ − × ÷` or numbers); `.` marks the starting cell. `generateWorld(seed)`
   builds a deterministic random 5×5 grid the same shape. The hand-authored
   worlds are laid out around each variant's grammar (operator runs beside a big
@@ -166,10 +166,17 @@ A collection of hand-authored maps plus a generator; `N` cycles them.
   edge), swipe resolution, bounds, cell path. Square is the default;
   `?layout=hex` swaps in pointy-top hexes in odd-r offset rows (six
   neighbours, same world data). Covered by `test/lattice.test.js`.
-- **Wiring, rendering, animation, input**: `main.js`; looks: `style.css`.
-- **Front page**: `index.html` + `gallery.js` — the catalogue, rendered from
-  `variants.js`. The game page is `play.html`; old deep links
-  (`?world=…&rule=…`) redirect there automatically.
+- **Debug notebook**: `src/debug.ts` — run totals, full move log, copy-run dump
+  behind the `/` panel (`?debug=1`); feeds notebooks and bug reports.
+- **Version**: `src/version.ts` → `APP_VERSION`, shown on the home page and in
+  the debug meta; mirrors package.json — `test/version.test.js` keeps the HTML
+  `?v=` cache-bust stamps and `APP_VERSION` in agreement with package.json.
+- **Sound cues**: `src/sound.ts` — pre-generated WebAudio kit (in-memory
+  synthesized buffers, no asset files); the `#vignette` flash is its visual twin.
+- **Wiring, rendering, animation, input**: `src/play.ts`; looks: `style.css`.
+- **Front page**: `index.html` + `src/gallery.ts` (→ `dist/gallery.js`) — the
+  catalogue, rendered from `src/variants.ts`. The game page is `play.html`;
+  old deep links (`?world=…&rule=…`) redirect there automatically.
 
 Every move appends an event
 `{turn, direction, oldNumber, destinationTile, result, delta, wentUp, valid, failed, failReason, pendingAtEntry}`

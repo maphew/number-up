@@ -4,7 +4,7 @@
       {
         "hooks": [
           {
-            "command": "bd prime --hook-json",
+            "command": "bd bootstrap -y >/dev/null 2>&1; bd prime --hook-json",
             "type": "command"
           }
         ],
