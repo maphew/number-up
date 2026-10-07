@@ -82,8 +82,16 @@ Test runner: `node:test` + `node:assert` (stdlib only). `npm test` needs no
 `npm install` and no build; it imports `src/engine.ts` directly (Node strips
 TS types natively, requires Node ≥22.18/23.6). No vitest/jest — a prototype
 this small should not acquire a heavy test toolchain for pure-logic coverage.
-Scope: `src/engine.ts` pure logic only (`test/engine.test.js`). Do NOT attempt
-DOM coverage of `src/play.ts` here — it has no DOM test harness.
+Scope: pure-logic modules only — engine, world, variants, lattice, debug,
+choosey composition (`test/*.test.js`). Do NOT attempt DOM coverage of
+`src/play.ts` or the pages — there is no DOM test harness.
+
+No browser is available in agent sandboxes (cached playwright chromium won't
+launch; firefox is an uninstalled snap shim). To verify page behaviour, follow
+the recipe on bead num-7ez.1 (`bd show num-7ez.1`): jsdom's
+`JSDOM.fromFile('play.html')` boots the bundle over the same file:// loading
+model; play moves and assert board/observation state. Keep the harness in
+`/tmp/kilo/`, not in the repo — it is ad-hoc tooling, not a devDep.
 
 Red-green loop (follow without being asked):
 1. RED: write/adjust the test first to assert the intended behavior, run
@@ -97,7 +105,10 @@ Red-green loop (follow without being asked):
 
 Debug helpers: `?debug=1` verbose event overlay, `?world=gen&seed=N` seeded
 worlds, `?rule=` / `?fail=` to force collision/failure rules, `?variant=<id>`
-to start a named variant (see `src/variants.ts` and `variants/README.md`).
+to start a named variant (see `src/variants.ts` and `variants/README.md`),
+`?layout=hex` for the hexagonal lattice, `?collapse=1` for tiles-vanish, and
+`?world=choosey&crules=…&cfails=…` for the rules-composition lab. The full
+URL-parameter list lives in the README (Controls, URL params).
 
 ## Architecture Overview
 
@@ -110,6 +121,9 @@ modules in `src/`, bundled to committed IIFE files in `dist/` by esbuild
   `?world`/`?rule`/`?fail`/`?variant` redirect to `play.html`
 - `play.html` + `src/play.ts` (→ `dist/play.js`) — the game page
   (formerly index.html)
+- `src/plain.ts` — plain-words copy register (rule/how/hypothesis/world
+  strings plus the touch × run-ender lookup chart) both pages read, so
+  page copy cannot drift from the registries
 - `src/variants.ts` — variant registry: named (collision × failure × world)
   combinations with a hypothesis each; single source of truth for the gallery
   and the game's `?variant=` param
@@ -122,6 +136,13 @@ modules in `src/`, bundled to committed IIFE files in `dist/` by esbuild
   `ctx.carried` (the armed operator)
 - `src/world.ts` — hand-authored `WORLDS` (5×5 grids), `generateWorld(seed)`,
   and the board overlays (`createCollapseState`, `createMatterState`, `HOLE`)
+- `src/debug.ts` — the `/` debug-panel notebook: run totals, full move log,
+  copy-run dump for notebooks and bug reports
+- `src/lattice.ts` — square and hex board geometry behind one interface
+  (centres, steps, swipe resolution); `?layout=hex` swaps the lattice;
+  experiment notes in `layouts/hex.md`
+- `src/version.ts` — `APP_VERSION`, shown on the home page and in debug meta;
+  mirrors the package.json version (test/version.test.js)
 - `src/sound.ts` — pre-generated WebAudio cue kit (in-memory synthesized
   buffers, no asset files); companion visual: the `#vignette` flash
 - `style.css` — looks
@@ -138,4 +159,7 @@ modules in `src/`, bundled to committed IIFE files in `dist/` by esbuild
   pairings
 - New variants: add a registry entry in `src/variants.ts` + a notebook file in
   `variants/<id>.md`; the gallery renders automatically
+- Keep the maps current in the same commit that adds them: a new `src/` file,
+  world, variant, or URL parameter updates the Architecture list above and the
+  README ("Where things live" + URL params)
 - Design intent and open questions live in `_the_beginning.md`
