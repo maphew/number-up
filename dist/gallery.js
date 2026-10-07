@@ -188,7 +188,7 @@
   };
 
   // src/version.ts
-  var APP_VERSION = "0.4.0";
+  var APP_VERSION = "0.4.1";
 
   // src/engine.ts
   var OPS = {

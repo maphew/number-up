@@ -156,6 +156,7 @@ let fxLayer: SVGElement;
 // 0.6 is the emergency default only for embeddings with no text-metric API.
 const ADVANCE_RATIO_GUESS = 0.6;
 let advanceRatio = ADVANCE_RATIO_GUESS;
+let advanceRatioMeasured = false;
 
 function measureAdvanceRatio(): void {
   try {
@@ -167,7 +168,10 @@ function measureAdvanceRatio(): void {
     const width = probe.getComputedTextLength();
     probe.remove();
     const ratio = width / (probe.textContent.length * 100);
-    if (Number.isFinite(ratio) && ratio > 0.1 && ratio < 2) advanceRatio = ratio;
+    if (Number.isFinite(ratio) && ratio > 0.1 && ratio < 2) {
+      advanceRatio = ratio;
+      advanceRatioMeasured = true;
+    }
   } catch {
     /* keep the guess */
   }
@@ -684,6 +688,9 @@ function renderNotebook() {
         ? 'Layout hex (pointy-top odd-r, 6 neighbours) — ←→/AD = W E · Q/E = NW/NE · Z/C = SW/SE · numpad 7/9/1/3 diagonals · swipe snaps to nearest of 6 (straight up/down → NE/SE)'
         : 'Layout square (4 neighbours) — arrows / WASD / numpad · swipe dominant axis',
       `URL: ${ctx.url}`,
+      // The mark's own telemetry (num-qhf): consumes the band write so the
+      // debug notebook can see what the fit maths did on a real device.
+      `Mark: ${playerNumberNode.style.fontSize || '?'} band ${playerNode.dataset.band ?? '?'} · advance ratio ${advanceRatio.toFixed(3)}${advanceRatioMeasured ? '' : ' (guess — measurement API unavailable)'}`,
       `Pending: ${state.engine.pending === null ? '—' : state.engine.pending}`,
       `Armed: ${state.engine.carried ?? '—'}`,
       v ? `Hypothesis: ${v.hypothesis}` : 'Custom rule × fail pairing.',

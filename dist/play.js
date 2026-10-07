@@ -1042,7 +1042,7 @@
   }
 
   // src/version.ts
-  var APP_VERSION = "0.4.0";
+  var APP_VERSION = "0.4.1";
 
   // src/play.ts
   function mustEl(id) {
@@ -1154,6 +1154,7 @@
   var fxLayer;
   var ADVANCE_RATIO_GUESS = 0.6;
   var advanceRatio = ADVANCE_RATIO_GUESS;
+  var advanceRatioMeasured = false;
   function measureAdvanceRatio() {
     try {
       const probe = ns("text", { x: -999, y: -999, class: "probe" });
@@ -1164,7 +1165,10 @@
       const width = probe.getComputedTextLength();
       probe.remove();
       const ratio = width / (probe.textContent.length * 100);
-      if (Number.isFinite(ratio) && ratio > 0.1 && ratio < 2) advanceRatio = ratio;
+      if (Number.isFinite(ratio) && ratio > 0.1 && ratio < 2) {
+        advanceRatio = ratio;
+        advanceRatioMeasured = true;
+      }
     } catch {
     }
   }
@@ -1600,6 +1604,9 @@ What happened / what should have happened:
         state.worldKey === "choosey" ? `Choosey ticks \u2014 touch: ${state.chooseyChecks.rules.join("+") || "none"} \xB7 run-ender: ${state.chooseyChecks.fails.join("+") || "none"}` : "",
         IS_HEX ? "Layout hex (pointy-top odd-r, 6 neighbours) \u2014 \u2190\u2192/AD = W E \xB7 Q/E = NW/NE \xB7 Z/C = SW/SE \xB7 numpad 7/9/1/3 diagonals \xB7 swipe snaps to nearest of 6 (straight up/down \u2192 NE/SE)" : "Layout square (4 neighbours) \u2014 arrows / WASD / numpad \xB7 swipe dominant axis",
         `URL: ${ctx.url}`,
+        // The mark's own telemetry (num-qhf): consumes the band write so the
+        // debug notebook can see what the fit maths did on a real device.
+        `Mark: ${playerNumberNode.style.fontSize || "?"} band ${playerNode.dataset.band ?? "?"} \xB7 advance ratio ${advanceRatio.toFixed(3)}${advanceRatioMeasured ? "" : " (guess \u2014 measurement API unavailable)"}`,
         `Pending: ${state.engine.pending === null ? "\u2014" : state.engine.pending}`,
         `Armed: ${state.engine.carried ?? "\u2014"}`,
         v ? `Hypothesis: ${v.hypothesis}` : "Custom rule \xD7 fail pairing."

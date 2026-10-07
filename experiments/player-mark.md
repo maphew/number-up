@@ -106,6 +106,27 @@ quiet.
     — inside at every ordinary band. The only sub-20px case is the 8-char
     exponential cap (~14px on a phone), reachable only past a six-digit you;
     recorded as the known compromise in place of the rejected abbreviation.
+- 2026-10-07 — Two-axis review verdict, owned here: the **F-alone baseline
+  (step 1) was skipped** — A+B+F landed in one commit, so "if players still
+  track their value fine, the rest is optional" was never measured. That
+  question is now closed by decision rather than by measurement: A+B
+  shipped, and the replacement for the measurement is the human attention
+  run tracked in the follow-up bead **num-1zh** (verdict writes back here). A fresh
+  player sees the demoted header *and* the banded mark together; what the
+  run must still answer is whether the mark earns its complexity, not
+  whether the header was enough alone.
+- 2026-10-07 — Review also found the arithmetic table hid a **per-glyph
+  inversion** (scale-independent, so sharper than the phone-only framing I
+  first typed): the mark grows in *spread* as digits accrue (4 digits span
+  86u of the 100u cell), but its *glyphs shrink* — 36u type at 4 digits vs
+  a tile's 44u, and the 5-digit fit-clamp pulls that to 31.3u. At-cap-height
+  ≈ 25u→22u against a tile's ≈30u: as you get bigger, the strokes of you
+  get smaller, which inverts the "you get bigger as you get bigger" promise
+  at the digit level. The mark is still in-cell and still amber/700/outlined;
+  machine-fixing it is blocked by the in-cell ink budget (any floor above
+  the fit value overflows the cell). Goes to the human run's checks; the
+  honest fallbacks the design section named remain (rework the budget, or
+  accept + record here).
 - (the attention observable — state your number without looking up, point at
   the board when asked what you are — needs a human run; everything
   machine-checkable above is locked)
