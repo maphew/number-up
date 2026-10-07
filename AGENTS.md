@@ -65,7 +65,8 @@ per-file output goes stale independently and couples page behavior to
 
 ```bash
 npm install        # once (devDeps: typescript, esbuild)
-npm test           # node:test suite (test/) — no build, no install needed
+npm test           # node:test suite (glob form: bare `--test test/`
+                   # breaks on Node <26, CI runs Node 24) — no install needed
 npm run typecheck  # tsc --noEmit
 npm run build      # esbuild → dist/play.js + dist/gallery.js + source maps
 npm run verify     # typecheck + test + build

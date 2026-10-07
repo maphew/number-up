@@ -5,7 +5,7 @@
   "description": "Number Up browser prototype",
   "type": "module",
   "scripts": {
-    "test": "node --test test/",
+    "test": "node --test \"test/*.test.js\"",
     "typecheck": "tsc --noEmit",
     "build": "esbuild src/play.ts --bundle --format=iife --outfile=dist/play.js --target=es2020 --sourcemap && esbuild src/gallery.ts --bundle --format=iife --outfile=dist/gallery.js --target=es2020 --sourcemap",
     "verify": "npm run typecheck && npm test && npm run build"
