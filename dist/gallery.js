@@ -186,9 +186,10 @@
       ]
     }
   };
+  var HOLE = "\u2205";
 
   // src/version.ts
-  var APP_VERSION = "0.4.1";
+  var APP_VERSION = "0.4.2";
 
   // src/engine.ts
   var OPS = {
@@ -202,7 +203,7 @@
   }
   function classify(tile) {
     if (tile === "") return "floor";
-    if (tile === "HOLE" || tile === "\u2205") return "floor";
+    if (tile === "HOLE" || tile === HOLE) return "floor";
     if (isOperator(tile)) return "op";
     const n = Number(tile);
     return Number.isFinite(n) ? "num" : "floor";

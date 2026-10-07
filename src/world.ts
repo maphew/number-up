@@ -95,52 +95,32 @@ export const COLLAPSED_TILE = 'floor';
 // impassable for the rest of the run.
 export const HOLE = '∅';
 
-export interface MatterState {
-  at(raw: string, x: number, y: number): string;
+export interface BoardOverlay {
+  // The shown glyph at a cell ('' is plain ground). Resolves the world row
+  // first, then everything the run has written. Throws past the edge, like
+  // reading the map did before this overlay existed.
+  tileAt(x: number, y: number): string;
+  // Write the cell: a glyph, '' for plain ground, HOLE for a pit,
+  // COLLAPSED_TILE for tiles-vanish. Edits land in move order — the last
+  // write at a cell wins, which is why arrival-floor writes must come before
+  // the rule's effect writes within a move.
   set(x: number, y: number, glyph: string): void;
-  clear(): void;
 }
 
-// Relay board edits (swap places, picked-up operators, consumed numbers,
-// dropped operators). Named cells override whatever the underlying world row
-// holds; an empty string is plain ground.
-export function createMatterState(): MatterState {
-  const cells = new Map<string, string>();
+// One machine, not two: the map for this run is the world rows plus one
+// overlay of written glyphs. Restart rebuilds the overlay next to the board,
+// so there is no clear() to forget.
+export function createBoardOverlay(rows: string[][]): BoardOverlay {
+  const shown = new Map<string, string>();
   return {
-    at(raw, x, y) {
-      const m = cells.get(`${x},${y}`);
-      return m === undefined ? raw : m;
+    tileAt(x, y) {
+      const tile = rows[y]?.[x];
+      if (tile === undefined) throw new Error(`no tile at ${x},${y}`);
+      const m = shown.get(`${x},${y}`);
+      return m === undefined ? tile : m;
     },
     set(x, y, glyph) {
-      cells.set(`${x},${y}`, glyph);
-    },
-    clear() {
-      cells.clear();
-    },
-  };
-}
-
-export interface CollapseState {
-  has(x: number, y: number): boolean;
-  tile(raw: string, x: number, y: number): string;
-  add(x: number, y: number): void;
-  clear(): void;
-}
-
-export function createCollapseState(): CollapseState {
-  const spent = new Set<string>();
-  return {
-    has(x, y) {
-      return spent.has(`${x},${y}`);
-    },
-    tile(raw, x, y) {
-      return spent.has(`${x},${y}`) ? COLLAPSED_TILE : raw;
-    },
-    add(x, y) {
-      spent.add(`${x},${y}`);
-    },
-    clear() {
-      spent.clear();
+      shown.set(`${x},${y}`, glyph);
     },
   };
 }

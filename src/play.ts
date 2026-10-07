@@ -1,5 +1,5 @@
 import { createChooseyEngine, createEngine, FAILURE_RULES, isOperator, RULES, type FailureName, type MoveEvent, type RuleName } from './engine.ts';
-import { createCollapseState, createMatterState, findStart, generateWorld, HOLE, WORLDS, WORLD_ORDER, type MatterState, type World, type WorldKey } from './world.ts';
+import { COLLAPSED_TILE, createBoardOverlay, findStart, generateWorld, HOLE, WORLDS, WORLD_ORDER, type BoardOverlay, type World, type WorldKey } from './world.ts';
 import { pnumFont } from './fit.ts';
 import { getVariant, variantFor } from './variants.ts';
 import { COLLAPSE_LONG, FAILURE_LONG, FAILURE_SHORT, RULE_LONG, RULE_SHORT, failsJoined, renderRulesReference, rulesJoined } from './plain.ts';
@@ -72,6 +72,16 @@ function chooseyChecksAtStartup(): { rules: string[]; fails: string[] } {
   };
 }
 
+const worldKeyAtStart = resolveWorldKey(rawWorld, rawVariant?.world);
+
+let bootSeed: number | null = null;
+if (worldKeyAtStart === 'gen') {
+  const s = parseInt(params.get('seed') ?? '', 10);
+  bootSeed = Number.isInteger(s) && s > 0 ? s : Math.floor(Math.random() * 99999) + 1;
+}
+
+const bootRows = worldKeyAtStart === 'gen' ? generateWorld(bootSeed ?? 0).rows : WORLDS[worldKeyAtStart].rows;
+
 const state: {
   worldKey: PlayWorld;
   genSeed: number | null;
@@ -83,11 +93,10 @@ const state: {
   pos: Pos;
   over: boolean;
   engine: ReturnType<typeof createEngine>;
-  spent: ReturnType<typeof createCollapseState>;
-  matter: MatterState;
+  board: BoardOverlay;
 } = {
-  worldKey: resolveWorldKey(rawWorld, rawVariant?.world),
-  genSeed: null,
+  worldKey: worldKeyAtStart,
+  genSeed: bootSeed,
   ruleKey,
   failKey,
   chooseyChecks: chooseyChecksAtStartup(),
@@ -96,14 +105,8 @@ const state: {
   pos: { x: 2, y: 2 },
   over: false,
   engine: createEngine(ruleKey, failKey),
-  spent: createCollapseState(),
-  matter: createMatterState(),
+  board: createBoardOverlay(bootRows),
 };
-
-if (state.worldKey === 'gen') {
-  const s = parseInt(params.get('seed') ?? '', 10);
-  state.genSeed = Number.isInteger(s) && s > 0 ? s : Math.floor(Math.random() * 99999) + 1;
-}
 
 const CELL = 100;
 const CANVAS = 500;
@@ -198,15 +201,6 @@ function currentVariant() {
   return variantFor(state.ruleKey, state.failKey, collapseOn);
 }
 
-function tileAt(x: number, y: number): string {
-  const row = world().rows[y];
-  const tile = row?.[x];
-  if (tile === undefined) throw new Error(`no tile at ${x},${y}`);
-  const matter = state.matter.at(tile, x, y);
-  if (matter !== tile) return matter;
-  return collapseOn ? state.spent.tile(tile, x, y) : tile;
-}
-
 function ns<K extends keyof SVGElementTagNameMap>(
   tag: K,
   attrs: Record<string, string | number>,
@@ -250,8 +244,6 @@ function buildGrid() {
     }
   }
 
-  paintCollapsedTiles(rows);
-
   for (let y = 0; y < rows.length; y++) {
     const row = rows[y];
     if (row === undefined) continue;
@@ -284,29 +276,17 @@ function buildGrid() {
   svg.appendChild(playerNode);
 }
 
-function paintCollapsedTiles(rows: World['rows']) {
-  if (!collapseOn) return;
-  for (let y = 0; y < rows.length; y++) {
-    const nodes = tileNodes[y];
-    if (nodes === undefined) continue;
-    for (let x = 0; x < (rows[y]?.length ?? 0); x++) {
-      if (!state.spent.has(x, y)) continue;
-      const text = nodes[x];
-      if (text) {
-        text.textContent = '';
-        text.classList.add('spent');
-      }
-    }
-  }
-}
-
-function collapseTileNode(x: number, y: number) {
-  const row = tileNodes[y];
-  const node = row?.[x] ?? null;
-  if (node) {
-    node.textContent = '';
-    node.classList.add('spent');
-  }
+// One place paints a tile node from board truth: the overlay's shown glyph
+// ('' is ground for '.' and floors alike) and the two husk classes the glyphs
+// imply. Toggled both ways, so a written glyph can never wear a spent coat
+// and a floor can never keep a hole class.
+function paintTileNode(x: number, y: number): void {
+  const node = tileNodes[y]?.[x] ?? null;
+  if (!node) return;
+  const glyph = state.board.tileAt(x, y);
+  node.textContent = glyph === '.' || glyph === COLLAPSED_TILE ? '' : glyph;
+  node.classList.toggle('hole', glyph === HOLE);
+  node.classList.toggle('spent', glyph === COLLAPSED_TILE);
 }
 
 function placePlayer() {
@@ -364,36 +344,29 @@ function deltaGlyph(ev: MoveEvent): string {
   return '— ±0';
 }
 
-function setTileNode(x: number, y: number, glyph: string) {
-  const node = tileNodes[y]?.[x] ?? null;
-  if (!node) return;
-  node.textContent = glyph;
-  node.classList.toggle('hole', glyph === HOLE);
-}
-
-// applyEffect turns the rule's board effect into the matter overlay and
-// SVG state, so tileAt (and every re-render) sees the same board as play.ts.
-// The origin cell always receives your old Number as a real glyph (never '').
+// applyEffect turns the rule's effect into board writes: the overlay records
+// the truth, paintTileNode paints the node. The origin cell always receives
+// your old Number as a real glyph (never '').
 function applyEffect(ev: MoveEvent, from: Pos, to: Pos) {
   const originGlyph = fmtNumber(ev.oldNumber);
   switch (ev.effect.kind) {
     case 'swap':
-      state.matter.set(from.x, from.y, originGlyph);
-      state.matter.set(to.x, to.y, '');
-      setTileNode(from.x, from.y, originGlyph);
-      setTileNode(to.x, to.y, '');
+      state.board.set(from.x, from.y, originGlyph);
+      state.board.set(to.x, to.y, '');
+      paintTileNode(from.x, from.y);
+      paintTileNode(to.x, to.y);
       break;
     case 'pickup':
-      state.matter.set(to.x, to.y, '');
-      setTileNode(to.x, to.y, '');
+      state.board.set(to.x, to.y, '');
+      paintTileNode(to.x, to.y);
       break;
     case 'opswap':
-      state.matter.set(to.x, to.y, ev.effect.dropped);
-      setTileNode(to.x, to.y, ev.effect.dropped);
+      state.board.set(to.x, to.y, ev.effect.dropped);
+      paintTileNode(to.x, to.y);
       break;
     case 'consume':
-      state.matter.set(to.x, to.y, HOLE);
-      setTileNode(to.x, to.y, HOLE);
+      state.board.set(to.x, to.y, HOLE);
+      paintTileNode(to.x, to.y);
       break;
     case 'none':
       break;
@@ -768,8 +741,8 @@ function tryMove(name: string) {
     return;
   }
 
-  // A hole left by a consumed number cannot be moved onto.
-  if (tileAt(next.x, next.y) === HOLE) {
+  // A pit left by a consumed number cannot be moved onto.
+  if (state.board.tileAt(next.x, next.y) === HOLE) {
     playerNode.classList.remove('pop');
     void playerNode.getBoundingClientRect();
     playerNode.classList.add('pop');
@@ -781,12 +754,12 @@ function tryMove(name: string) {
 
   const from = { ...state.pos };
   fromLog.push({ ...from });
-  const ev = state.engine.attempt(state.number, name.toUpperCase(), tileAt(next.x, next.y));
+  const ev = state.engine.attempt(state.number, name.toUpperCase(), state.board.tileAt(next.x, next.y));
   state.number = ev.valid ? ev.result : NaN;
   state.pos = next;
   if (collapseOn) {
-    state.spent.add(state.pos.x, state.pos.y);
-    collapseTileNode(state.pos.x, state.pos.y);
+    state.board.set(state.pos.x, state.pos.y, COLLAPSED_TILE);
+    paintTileNode(state.pos.x, state.pos.y);
   }
 
   render();
@@ -819,8 +792,7 @@ function restart(message?: string) {
   state.pos = findStart(world());
   state.over = false;
   fromLog = [];
-  state.spent.clear();
-  state.matter.clear();
+  state.board = createBoardOverlay(world().rows);
   buildGrid();
   syncUrl();
   syncChooseyPanel();

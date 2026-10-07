@@ -1,18 +1,147 @@
 "use strict";
 (() => {
+  // src/world.ts
+  var WORLD_RECAST = "2026-10-02 19:50 PDT";
+  var WORLDS = {
+    full: {
+      name: "Full \u2014 mixed grid",
+      updated: WORLD_RECAST,
+      rows: [
+        ["7", "+", "3", "\xD7", "8"],
+        ["\u2212", "4", "5", "9", "+"],
+        ["2", "3", ".", "6", "+"],
+        ["+", "5", "4", "1", "\xD7"],
+        ["8", "\u2212", "3", "+", "7"]
+      ]
+    },
+    a: {
+      name: "A \u2014 Number + Number",
+      updated: WORLD_RECAST,
+      rows: [
+        ["3", "8", "2", "5", "9"],
+        ["6", "1", "7", "4", "2"],
+        ["0", "5", ".", "4", "3"],
+        ["1", "4", "8", "2", "6"],
+        ["5", "7", "0", "3", "8"]
+      ]
+    },
+    b: {
+      name: "B \u2014 Number + Operator",
+      updated: WORLD_RECAST,
+      rows: [
+        ["\xD7", "+", "+", "+", "\xD7"],
+        ["+", "+", "9", "+", "+"],
+        ["+", "6", ".", "7", "+"],
+        ["+", "+", "3", "+", "+"],
+        ["\xD7", "+", "+", "+", "\xD7"]
+      ]
+    },
+    c: {
+      name: "C \u2014 UP vs DOWN",
+      updated: WORLD_RECAST,
+      rows: [
+        ["1", "2", "3", "4", "5"],
+        ["10", "9", "8", "7", "6"],
+        ["11", "12", ".", "14", "15"],
+        ["20", "19", "18", "17", "16"],
+        ["21", "22", "23", "24", "25"]
+      ]
+    },
+    d: {
+      name: "D \u2014 Failure",
+      updated: WORLD_RECAST,
+      rows: [
+        ["9", "\u2212", "1", "\xD7", "4"],
+        ["+", "7", "\xD7", "3", "8"],
+        ["\xD7", "2", ".", "6", "\u2212"],
+        ["5", "\xF7", "0", "+", "9"],
+        ["3", "\xD7", "8", "\u2212", "2"]
+      ]
+    },
+    // num-dn2: the rule-composition lab — the tiles offer every tile kind
+    // (flat pairs, every sign, a 0 sitting on a ÷ trap), but which rules apply
+    // is decided by the ticked checkbox list under the board (play.ts wires
+    // the panel; the engine composes them first-applicable-wins).
+    choosey: {
+      name: "Choosey \u2014 you pick the rules",
+      updated: "2026-10-05 23:00 PDT",
+      rows: [
+        ["+", "+", "+", "+", "+"],
+        ["+", "6", "9", "9", "\xD7"],
+        ["+", "5", ".", "7", "+"],
+        ["6", "\xD7", "6", "0", "\xF7"],
+        ["+", "+", "\u2212", "+", "8"]
+      ]
+    }
+  };
+  var WORLD_ORDER = ["full", "a", "b", "c", "d", "choosey"];
+  var COLLAPSED_TILE = "floor";
+  var HOLE = "\u2205";
+  function createBoardOverlay(rows) {
+    const shown = /* @__PURE__ */ new Map();
+    return {
+      tileAt(x, y) {
+        const tile = rows[y]?.[x];
+        if (tile === void 0) throw new Error(`no tile at ${x},${y}`);
+        const m = shown.get(`${x},${y}`);
+        return m === void 0 ? tile : m;
+      },
+      set(x, y, glyph) {
+        shown.set(`${x},${y}`, glyph);
+      }
+    };
+  }
+  function mulberry32(seed) {
+    let a = seed | 0;
+    return function() {
+      a = a + 1831565813 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) | 0;
+      return (t ^ t >>> 7 ^ t >>> 14) >>> 0;
+    };
+  }
+  var OPS = ["+", "\u2212", "\xD7", "\xF7"];
+  function generateWorld(seed) {
+    const rand = mulberry32(seed);
+    const rows = [];
+    for (let y = 0; y < 5; y++) {
+      const row = [];
+      for (let x = 0; x < 5; x++) {
+        if (x === 2 && y === 2) {
+          row.push(".");
+          continue;
+        }
+        const op = OPS[rand() % OPS.length] ?? "+";
+        row.push(rand() % 10 < 6 ? String(rand() % 10) : op);
+      }
+      rows.push(row);
+    }
+    return { name: `Generated #${seed}`, rows, seed };
+  }
+  function findStart(world2) {
+    for (let y = 0; y < world2.rows.length; y++) {
+      const row = world2.rows[y];
+      if (row === void 0) continue;
+      const x = row.indexOf(".");
+      if (x !== -1) return { x, y };
+    }
+    const m = (world2.rows.length - 1) / 2;
+    return { x: m, y: m };
+  }
+
   // src/engine.ts
-  var OPS = {
+  var OPS2 = {
     "+": (a, b) => a + b,
     "\u2212": (a, b) => a - b,
     "\xD7": (a, b) => a * b,
     "\xF7": (a, b) => b === 0 ? NaN : a / b
   };
   function isOperator(tile) {
-    return Object.prototype.hasOwnProperty.call(OPS, tile);
+    return Object.prototype.hasOwnProperty.call(OPS2, tile);
   }
   function classify(tile) {
     if (tile === "") return "floor";
-    if (tile === "HOLE" || tile === "\u2205") return "floor";
+    if (tile === "HOLE" || tile === HOLE) return "floor";
     if (isOperator(tile)) return "op";
     const n = Number(tile);
     return Number.isFinite(n) ? "num" : "floor";
@@ -59,7 +188,7 @@
           ctx.noOperand = tile;
           return NaN;
         }
-        return OPS[tile](currentNumber, ctx.pending);
+        return OPS2[tile](currentNumber, ctx.pending);
       }
     },
     relay: {
@@ -73,7 +202,7 @@
           if (armed !== null) {
             ctx.carried = null;
             ctx.effect = { kind: "consume" };
-            return OPS[armed](currentNumber, Number(tile));
+            return OPS2[armed](currentNumber, Number(tile));
           }
           ctx.effect = { kind: "swap" };
           return Number(tile);
@@ -262,153 +391,6 @@
         return move;
       }
     };
-  }
-
-  // src/world.ts
-  var WORLD_RECAST = "2026-10-02 19:50 PDT";
-  var WORLDS = {
-    full: {
-      name: "Full \u2014 mixed grid",
-      updated: WORLD_RECAST,
-      rows: [
-        ["7", "+", "3", "\xD7", "8"],
-        ["\u2212", "4", "5", "9", "+"],
-        ["2", "3", ".", "6", "+"],
-        ["+", "5", "4", "1", "\xD7"],
-        ["8", "\u2212", "3", "+", "7"]
-      ]
-    },
-    a: {
-      name: "A \u2014 Number + Number",
-      updated: WORLD_RECAST,
-      rows: [
-        ["3", "8", "2", "5", "9"],
-        ["6", "1", "7", "4", "2"],
-        ["0", "5", ".", "4", "3"],
-        ["1", "4", "8", "2", "6"],
-        ["5", "7", "0", "3", "8"]
-      ]
-    },
-    b: {
-      name: "B \u2014 Number + Operator",
-      updated: WORLD_RECAST,
-      rows: [
-        ["\xD7", "+", "+", "+", "\xD7"],
-        ["+", "+", "9", "+", "+"],
-        ["+", "6", ".", "7", "+"],
-        ["+", "+", "3", "+", "+"],
-        ["\xD7", "+", "+", "+", "\xD7"]
-      ]
-    },
-    c: {
-      name: "C \u2014 UP vs DOWN",
-      updated: WORLD_RECAST,
-      rows: [
-        ["1", "2", "3", "4", "5"],
-        ["10", "9", "8", "7", "6"],
-        ["11", "12", ".", "14", "15"],
-        ["20", "19", "18", "17", "16"],
-        ["21", "22", "23", "24", "25"]
-      ]
-    },
-    d: {
-      name: "D \u2014 Failure",
-      updated: WORLD_RECAST,
-      rows: [
-        ["9", "\u2212", "1", "\xD7", "4"],
-        ["+", "7", "\xD7", "3", "8"],
-        ["\xD7", "2", ".", "6", "\u2212"],
-        ["5", "\xF7", "0", "+", "9"],
-        ["3", "\xD7", "8", "\u2212", "2"]
-      ]
-    },
-    // num-dn2: the rule-composition lab — the tiles offer every tile kind
-    // (flat pairs, every sign, a 0 sitting on a ÷ trap), but which rules apply
-    // is decided by the ticked checkbox list under the board (play.ts wires
-    // the panel; the engine composes them first-applicable-wins).
-    choosey: {
-      name: "Choosey \u2014 you pick the rules",
-      updated: "2026-10-05 23:00 PDT",
-      rows: [
-        ["+", "+", "+", "+", "+"],
-        ["+", "6", "9", "9", "\xD7"],
-        ["+", "5", ".", "7", "+"],
-        ["6", "\xD7", "6", "0", "\xF7"],
-        ["+", "+", "\u2212", "+", "8"]
-      ]
-    }
-  };
-  var WORLD_ORDER = ["full", "a", "b", "c", "d", "choosey"];
-  var COLLAPSED_TILE = "floor";
-  var HOLE = "\u2205";
-  function createMatterState() {
-    const cells = /* @__PURE__ */ new Map();
-    return {
-      at(raw, x, y) {
-        const m = cells.get(`${x},${y}`);
-        return m === void 0 ? raw : m;
-      },
-      set(x, y, glyph) {
-        cells.set(`${x},${y}`, glyph);
-      },
-      clear() {
-        cells.clear();
-      }
-    };
-  }
-  function createCollapseState() {
-    const spent = /* @__PURE__ */ new Set();
-    return {
-      has(x, y) {
-        return spent.has(`${x},${y}`);
-      },
-      tile(raw, x, y) {
-        return spent.has(`${x},${y}`) ? COLLAPSED_TILE : raw;
-      },
-      add(x, y) {
-        spent.add(`${x},${y}`);
-      },
-      clear() {
-        spent.clear();
-      }
-    };
-  }
-  function mulberry32(seed) {
-    let a = seed | 0;
-    return function() {
-      a = a + 1831565813 | 0;
-      let t = Math.imul(a ^ a >>> 15, 1 | a);
-      t = t + Math.imul(t ^ t >>> 7, 61 | t) | 0;
-      return (t ^ t >>> 7 ^ t >>> 14) >>> 0;
-    };
-  }
-  var OPS2 = ["+", "\u2212", "\xD7", "\xF7"];
-  function generateWorld(seed) {
-    const rand = mulberry32(seed);
-    const rows = [];
-    for (let y = 0; y < 5; y++) {
-      const row = [];
-      for (let x = 0; x < 5; x++) {
-        if (x === 2 && y === 2) {
-          row.push(".");
-          continue;
-        }
-        const op = OPS2[rand() % OPS2.length] ?? "+";
-        row.push(rand() % 10 < 6 ? String(rand() % 10) : op);
-      }
-      rows.push(row);
-    }
-    return { name: `Generated #${seed}`, rows, seed };
-  }
-  function findStart(world2) {
-    for (let y = 0; y < world2.rows.length; y++) {
-      const row = world2.rows[y];
-      if (row === void 0) continue;
-      const x = row.indexOf(".");
-      if (x !== -1) return { x, y };
-    }
-    const m = (world2.rows.length - 1) / 2;
-    return { x: m, y: m };
   }
 
   // src/fit.ts
@@ -1042,7 +1024,7 @@
   }
 
   // src/version.ts
-  var APP_VERSION = "0.4.1";
+  var APP_VERSION = "0.4.2";
 
   // src/play.ts
   function mustEl(id) {
@@ -1095,9 +1077,16 @@
       fails: pickChecks(params.get("cfails"), FAILURE_RULES, rawVariant ? [rawVariant.fail] : ["notUp"])
     };
   }
+  var worldKeyAtStart = resolveWorldKey(rawWorld, rawVariant?.world);
+  var bootSeed = null;
+  if (worldKeyAtStart === "gen") {
+    const s = parseInt(params.get("seed") ?? "", 10);
+    bootSeed = Number.isInteger(s) && s > 0 ? s : Math.floor(Math.random() * 99999) + 1;
+  }
+  var bootRows = worldKeyAtStart === "gen" ? generateWorld(bootSeed ?? 0).rows : WORLDS[worldKeyAtStart].rows;
   var state = {
-    worldKey: resolveWorldKey(rawWorld, rawVariant?.world),
-    genSeed: null,
+    worldKey: worldKeyAtStart,
+    genSeed: bootSeed,
     ruleKey,
     failKey,
     chooseyChecks: chooseyChecksAtStartup(),
@@ -1106,13 +1095,8 @@
     pos: { x: 2, y: 2 },
     over: false,
     engine: createEngine(ruleKey, failKey),
-    spent: createCollapseState(),
-    matter: createMatterState()
+    board: createBoardOverlay(bootRows)
   };
-  if (state.worldKey === "gen") {
-    const s = parseInt(params.get("seed") ?? "", 10);
-    state.genSeed = Number.isInteger(s) && s > 0 ? s : Math.floor(Math.random() * 99999) + 1;
-  }
   var CELL = 100;
   var CANVAS = 500;
   var sound = createSoundKit();
@@ -1188,14 +1172,6 @@
     if (state.worldKey === "choosey") return null;
     return variantFor(state.ruleKey, state.failKey, collapseOn);
   }
-  function tileAt(x, y) {
-    const row = world().rows[y];
-    const tile = row?.[x];
-    if (tile === void 0) throw new Error(`no tile at ${x},${y}`);
-    const matter = state.matter.at(tile, x, y);
-    if (matter !== tile) return matter;
-    return collapseOn ? state.spent.tile(tile, x, y) : tile;
-  }
   function ns(tag, attrs) {
     const node = document.createElementNS("http://www.w3.org/2000/svg", tag);
     for (const k in attrs) node.setAttribute(k, String(attrs[k]));
@@ -1232,7 +1208,6 @@
         }
       }
     }
-    paintCollapsedTiles(rows);
     for (let y = 0; y < rows.length; y++) {
       const row = rows[y];
       if (row === void 0) continue;
@@ -1257,28 +1232,13 @@
     playerNode.appendChild(playerCarriedNode);
     svg.appendChild(playerNode);
   }
-  function paintCollapsedTiles(rows) {
-    if (!collapseOn) return;
-    for (let y = 0; y < rows.length; y++) {
-      const nodes = tileNodes[y];
-      if (nodes === void 0) continue;
-      for (let x = 0; x < (rows[y]?.length ?? 0); x++) {
-        if (!state.spent.has(x, y)) continue;
-        const text = nodes[x];
-        if (text) {
-          text.textContent = "";
-          text.classList.add("spent");
-        }
-      }
-    }
-  }
-  function collapseTileNode(x, y) {
-    const row = tileNodes[y];
-    const node = row?.[x] ?? null;
-    if (node) {
-      node.textContent = "";
-      node.classList.add("spent");
-    }
+  function paintTileNode(x, y) {
+    const node = tileNodes[y]?.[x] ?? null;
+    if (!node) return;
+    const glyph = state.board.tileAt(x, y);
+    node.textContent = glyph === "." || glyph === COLLAPSED_TILE ? "" : glyph;
+    node.classList.toggle("hole", glyph === HOLE);
+    node.classList.toggle("spent", glyph === COLLAPSED_TILE);
   }
   function placePlayer() {
     const { cx, cy } = cellCenter(state.pos.x, state.pos.y);
@@ -1324,32 +1284,26 @@
     if (ev.delta < 0) return `\u2193 ${ev.delta}`;
     return "\u2014 \xB10";
   }
-  function setTileNode(x, y, glyph) {
-    const node = tileNodes[y]?.[x] ?? null;
-    if (!node) return;
-    node.textContent = glyph;
-    node.classList.toggle("hole", glyph === HOLE);
-  }
   function applyEffect(ev, from, to) {
     const originGlyph = fmtNumber(ev.oldNumber);
     switch (ev.effect.kind) {
       case "swap":
-        state.matter.set(from.x, from.y, originGlyph);
-        state.matter.set(to.x, to.y, "");
-        setTileNode(from.x, from.y, originGlyph);
-        setTileNode(to.x, to.y, "");
+        state.board.set(from.x, from.y, originGlyph);
+        state.board.set(to.x, to.y, "");
+        paintTileNode(from.x, from.y);
+        paintTileNode(to.x, to.y);
         break;
       case "pickup":
-        state.matter.set(to.x, to.y, "");
-        setTileNode(to.x, to.y, "");
+        state.board.set(to.x, to.y, "");
+        paintTileNode(to.x, to.y);
         break;
       case "opswap":
-        state.matter.set(to.x, to.y, ev.effect.dropped);
-        setTileNode(to.x, to.y, ev.effect.dropped);
+        state.board.set(to.x, to.y, ev.effect.dropped);
+        paintTileNode(to.x, to.y);
         break;
       case "consume":
-        state.matter.set(to.x, to.y, HOLE);
-        setTileNode(to.x, to.y, HOLE);
+        state.board.set(to.x, to.y, HOLE);
+        paintTileNode(to.x, to.y);
         break;
       case "none":
         break;
@@ -1681,7 +1635,7 @@ What happened / what should have happened:
       flashVignette("blocked");
       return;
     }
-    if (tileAt(next.x, next.y) === HOLE) {
+    if (state.board.tileAt(next.x, next.y) === HOLE) {
       playerNode.classList.remove("pop");
       void playerNode.getBoundingClientRect();
       playerNode.classList.add("pop");
@@ -1692,12 +1646,12 @@ What happened / what should have happened:
     }
     const from = { ...state.pos };
     fromLog.push({ ...from });
-    const ev = state.engine.attempt(state.number, name.toUpperCase(), tileAt(next.x, next.y));
+    const ev = state.engine.attempt(state.number, name.toUpperCase(), state.board.tileAt(next.x, next.y));
     state.number = ev.valid ? ev.result : NaN;
     state.pos = next;
     if (collapseOn) {
-      state.spent.add(state.pos.x, state.pos.y);
-      collapseTileNode(state.pos.x, state.pos.y);
+      state.board.set(state.pos.x, state.pos.y, COLLAPSED_TILE);
+      paintTileNode(state.pos.x, state.pos.y);
     }
     render();
     animateSuperpose(ev, from, state.pos);
@@ -1727,8 +1681,7 @@ What happened / what should have happened:
     state.pos = findStart(world());
     state.over = false;
     fromLog = [];
-    state.spent.clear();
-    state.matter.clear();
+    state.board = createBoardOverlay(world().rows);
     buildGrid();
     syncUrl();
     syncChooseyPanel();

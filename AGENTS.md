@@ -137,7 +137,9 @@ modules in `src/`, bundled to committed IIFE files in `dist/` by esbuild
   may set `ctx.effect` (board edits, rendered by play.ts) and, for Relay,
   `ctx.carried` (the armed operator)
 - `src/world.ts` — hand-authored `WORLDS` (5×5 grids), `generateWorld(seed)`,
-  and the board overlays (`createCollapseState`, `createMatterState`, `HOLE`)
+  and the board overlay (`createBoardOverlay`: one truth per cell — the rows
+  plus run writes in move order, last write wins; `HOLE` pit, `COLLAPSED_TILE`
+  floor)
 - `src/debug.ts` — the `/` debug-panel notebook: run totals, full move log,
   copy-run dump for notebooks and bug reports
 - `src/fit.ts` — pure player-mark fit maths (`digitBand` + `fitFontSize` +

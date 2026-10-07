@@ -1,36 +1,55 @@
 'use strict';
-// TDD test for num-wkq.1: collapse-to-floor state lives in world.ts (pure, no DOM).
+// Board overlay suite (num-yyg: matter + collapse state machines merged into
+// one full-truth BoardOverlay in world.ts, pure, no DOM). One truth per cell:
+// the world rows plus everything written onto them during a run, written in
+// move order — the last write at a cell wins.
 // Runner: node:test + node:assert (stdlib only). Node strips TS types natively.
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { createCollapseState, COLLAPSED_TILE, createMatterState, generateWorld, WORLDS, findStart, HOLE } from '../src/world.ts';
+import { createBoardOverlay, COLLAPSED_TILE, generateWorld, WORLDS, findStart, HOLE } from '../src/world.ts';
 import { classify, createEngine, RULES, FAILURE_RULES } from '../src/engine.ts';
 import { VARIANTS, VARIANT_ORDER } from '../src/variants.ts';
 
-describe('collapse-to-floor state (review R2 opt-in experiment)', () => {
-  it('fresh state collapses nothing; tiles pass through', () => {
-    const spent = createCollapseState();
-    assert.equal(spent.has(3, 2), false);
-    assert.equal(spent.tile('6', 3, 2), '6');
+describe('board overlay: one truth per cell (grid rows + run writes)', () => {
+  const rows = [
+    ['.', '.', '.', '.'],
+    ['.', '.', '.', '.'],
+    ['.', '.', '.', '6'],
+  ];
+
+  it('a fresh overlay shows the world rows and throws past the edge', () => {
+    const board = createBoardOverlay(rows);
+    assert.equal(board.tileAt(3, 2), '6');
+    assert.equal(board.tileAt(0, 0), '.');
+    assert.throws(() => board.tileAt(4, 2), /no tile at 4,2/);
   });
 
-  it('marked cells read as the floor sentinel, which classifies as floor', () => {
-    const spent = createCollapseState();
-    spent.add(3, 2);
-    assert.equal(spent.has(3, 2), true);
-    assert.equal(spent.has(3, 3), false);
-    assert.equal(spent.tile('6', 3, 2), COLLAPSED_TILE);
-    assert.equal(spent.tile('6', 3, 3), '6');
-    assert.equal(classify(spent.tile('6', 3, 2)), 'floor');
+  it('collapse is an overlay write: floored cells read as the floor sentinel', () => {
+    const board = createBoardOverlay(rows);
+    board.set(3, 2, COLLAPSED_TILE);
+    assert.equal(board.tileAt(3, 2), COLLAPSED_TILE);
+    assert.equal(board.tileAt(0, 0), '.');
+    assert.equal(classify(board.tileAt(3, 2)), 'floor');
   });
 
-  it('clear() restores the board (restart)', () => {
-    const spent = createCollapseState();
-    spent.add(3, 2);
-    spent.clear();
-    assert.equal(spent.has(3, 2), false);
-    assert.equal(spent.tile('6', 3, 2), '6');
+  it('a written pit reads as a pit and eats nothing; written ground reads as ground', () => {
+    const board = createBoardOverlay(rows);
+    board.set(3, 2, HOLE);
+    assert.equal(board.tileAt(3, 2), HOLE);
+    assert.equal(classify(board.tileAt(3, 2)), 'floor');
+    board.set(3, 2, '');
+    assert.equal(board.tileAt(3, 2), '');
+  });
+
+  it('writes land in move order: the last write at a cell wins', () => {
+    const board = createBoardOverlay(rows);
+    board.set(3, 2, COLLAPSED_TILE); // the arrival-floor write
+    board.set(3, 2, '5');            // a later effect write beats it
+    assert.equal(board.tileAt(3, 2), '5');
+    board.set(3, 2, '');             // cleared ground...
+    board.set(3, 2, COLLAPSED_TILE); // ...can still be floored by a later arrival
+    assert.equal(board.tileAt(3, 2), COLLAPSED_TILE);
   });
 
   it('generateWorld is deterministic per seed (measurement is reproducible)', () => {
@@ -126,45 +145,49 @@ function longestRoute(world, rule, fail, cap = Infinity) {
   dfs(start.x, start.y, 0, null, 0);
   return best;
 }
+describe('relay board edits through the overlay (num-ak7: swap · arm · consume)', () => {
 
-describe('relay board matter (num-ak7: swap · arm · consume)', () => {
   it('named cells override the underlying world row; empty string is ground', () => {
-    const matter = createMatterState();
-    assert.equal(matter.at('6', 3, 2), '6');
-    matter.set(3, 2, '0');
-    assert.equal(matter.at('6', 3, 2), '0');
-    matter.set(3, 2, '');
-    assert.equal(matter.at('6', 3, 2), '');
-    matter.clear();
-    assert.equal(matter.at('6', 3, 2), '6');
+    const board = createBoardOverlay([
+      ['6'],
+    ]);
+    assert.equal(board.tileAt(0, 0), '6');
+    board.set(0, 0, '0');
+    assert.equal(board.tileAt(0, 0), '0');
+    board.set(0, 0, '');
+    assert.equal(board.tileAt(0, 0), '');
   });
 
   // The board semantics play.ts applies from the engine's effect channel,
   // mirrored here so the pure modules keep the contract without a DOM.
   it('a consumed number leaves an impassable hole; a swap repopulates the origin cell', () => {
     const engine = createEngine('relay', 'none');
-    const matter = createMatterState();
+    const board = createBoardOverlay([
+      ['+', '+', '9'],
+      ['+', '+', '+'],
+      ['+', '+', '.'],
+    ]);
 
     // start 0 → swap with 7: you become 7, origin cell holds 0
     const swap = engine.attempt(0, 'up', '7');
     assert.deepEqual(swap.effect, { kind: 'swap' });
-    matter.set(2, 2, swap.destinationTile);
-    matter.set(2, 1, '');
-    assert.equal(matter.at('.', 2, 2), '7');
+    board.set(2, 2, swap.destinationTile);
+    board.set(2, 1, '');
+    assert.equal(board.tileAt(2, 2), '7');
 
     // armed: pick up '+' from the world row
     const pickup = engine.attempt(7, 'up', '+');
     assert.deepEqual(pickup.effect, { kind: 'pickup' });
-    matter.set(2, 0, '');
+    board.set(2, 0, '');
     assert.equal(engine.carried, '+');
 
     // eat the 9: consumed, hole, unarmed again
     const eat = engine.attempt(7, 'up', '9');
     assert.equal(eat.result, 16);
     assert.deepEqual(eat.effect, { kind: 'consume' });
-    matter.set(2, 0, HOLE);
+    board.set(2, 0, HOLE);
     assert.equal(engine.carried, null);
-    assert.equal(matter.at('9', 2, 0), HOLE);
+    assert.equal(board.tileAt(2, 0), HOLE);
   });
 });
 
