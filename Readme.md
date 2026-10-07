@@ -1,4 +1,4 @@
-# NUMBER UP — superposition 0
+# NUMBER UP
 
 A design-laboratory prototype. The full plan and intent live in `_the_beginning.md`.
 
@@ -10,9 +10,7 @@ are open questions — the prototype exists to let you feel candidate answers.
 ## Run
 
 The front page at https://maphew.github.io/number-up/ is a catalogue of
-**variants**: named rule-combinations, each a candidate answer to "what does
-superposition mean?". Pick one and play. For local work, open `index.html`
-directly or serve the folder, e.g. `python3 -m http.server 8123`.
+**variants**: named rule-combinations, pick one and play. For local work, open `index.html` directly or serve the folder, e.g. `python3 -m http.server 8123`.
 
 On a phone (touch): the grid accepts swipes to move and taps to restart. The
 shortcut chips below the map mirror the keyboard shortcuts and are clickable
@@ -56,10 +54,10 @@ The failure rule is a candidate too: <kbd>F</kbd> cycles `notUp → down → non
 
 ## Worlds
 
-Five hand-authored maps plus a generator; `N` cycles them. What the rules do on
-each map is described in plain words on the pages themselves (`L` on the game,
-or the reference section on the front page) — `src/plain.ts` is the single
-copy register both pages read, so the words cannot drift from the registries.
+A collection of hand-authored maps plus a generator; `N` cycles them. 
+`L` on a game page to read the rules.
+
+`src/plain.ts` is the singlecopy register both pages read, so the words cannot drift from the registries.
 
 - `full` — a bit of everything (numbers, all four signs)
 - `a` — nothing but numbers; zeros are the walls

@@ -15,7 +15,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The repo's quality gate is npm run verify (typecheck + test + build).
+  # Pages deploys straight from main, so this gate runs in CI and blocks the
+  # deploy — the bundle-freshness guard below only catches staleness, not
+  # broken source.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run verify
+
   deploy:
+    needs: verify
     runs-on: ubuntu-latest
     environment:
       name: github-pages
